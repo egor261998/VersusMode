@@ -13,6 +13,6 @@ return {
         "dmf",
         "Realms",
     },
-    version = "3.0.2",
+    version = "3.0.3",
     mod_id = "VersusMode",
 }

@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.2"
+mod.version = "3.0.3"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -565,7 +565,7 @@ local MANUAL_AIM_BREEDS = {
 local SNIPER_AIM_DISTANCE = 150
 local SNIPER_CAMERA_FORWARD_OFFSET = 0.18
 local SNIPER_CAMERA_UP_OFFSET = 0.04
-local SNIPER_FIRE_COOLDOWN = 1.5
+local SNIPER_FIRE_COOLDOWN = 2
 local UI_INPUT_RELEASE_GRACE = 0.2
 local GRENADE_PREVIEW_STEP = 0.06
 local GRENADE_PREVIEW_MAX_TIME = 12
@@ -1287,7 +1287,7 @@ VersusModeState.variant_attacks = {
             action_name = "shoot_net",
             manual_aim = true,
             manual_range_max = 28,
-            cooldown_duration = 5,
+            cooldown_duration = 2,
         },
     },
 }
@@ -12311,7 +12311,8 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
     local hound_solution
     local command_free_aim = Specialist.free_aim(state) and attack.camera_directed
 
-    if attack.cooldown_duration and t < (state.netter_fire_cooldown_until or 0) then
+    if state.breed.name == NETTER_BREED_NAME and attack.action_name == "shoot_net"
+        and t < (state.netter_fire_cooldown_until or 0) then
         local remaining = state.netter_fire_cooldown_until - t
 
         set_status(state, mod:localize("variant_attack_cooldown", remaining), remaining)
@@ -19705,7 +19706,7 @@ mod.control_hud_data = function()
         local distance = state.manual_aim_distance
         local variant = state.variant_id == "sniper_netter"
         local range_limit = variant and 28 or 14
-        local cooldown_remaining = variant and math_max(0, (state.netter_fire_cooldown_until or 0) - t) or 0
+        local cooldown_remaining = math_max(0, (state.netter_fire_cooldown_until or 0) - t)
         local reaches_target = distance ~= nil and distance <= range_limit
         local ready = not firing and distance ~= nil and cooldown_remaining <= 0 and (not variant or reaches_target)
         local aim_unit = state.manual_aim_hit_unit
@@ -20895,6 +20896,15 @@ function VersusModeState.controlled_flinch_immune(unit)
         or false
 end
 
+-- Poxbursters must retain shove/knockback counterplay. Suppression
+-- immunity is separate and remains unchanged for controlled units.
+function VersusModeState.controlled_stagger_immune(unit)
+    local state = VersusModeState.control_for_unit(unit)
+    local breed_name = state and state.breed and state.breed.name
+    return VersusModeState.controlled_flinch_immune(unit)
+        and breed_name ~= POXBURSTER_BREED_NAME
+end
+
 function VersusModeState.clear_controlled_suppression(extension)
     local component = extension._suppression_component
     if component then
@@ -20943,7 +20953,7 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
     hit_shield,
     damage_type
 )
-    if VersusModeState.controlled_flinch_immune(unit) then
+    if VersusModeState.controlled_stagger_immune(unit) then
         return false, nil
     end
     local scale = VersusModeState.controlled_boss_cc_scale(unit)
@@ -21010,7 +21020,7 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
 end)
 
 mod:hook(VersusModeState.stagger, "force_stagger", function(func, unit, stagger_type, attack_direction, duration, length_scale, immune_time, attacker_unit, ignore_no_stagger)
-    if VersusModeState.controlled_flinch_immune(unit) then
+    if VersusModeState.controlled_stagger_immune(unit) then
         return
     end
     local scale = VersusModeState.controlled_boss_cc_scale(unit)
@@ -23761,24 +23771,17 @@ end)
 
 mod:hook(BtShootNetAction, "_start_shooting", function(func, self, unit, scratchpad, action_data)
     local state = VersusModeState.control_for_unit(unit)
-
-    if not state
-        or state.unit ~= unit
-        or state.variant_id ~= "sniper_netter"
-        or not state.requested_attack
-        or state.requested_attack.action_name ~= "shoot_net" then
+    if not state or state.unit ~= unit or state.breed.name ~= NETTER_BREED_NAME
+        or not state.requested_attack or state.requested_attack.action_name ~= "shoot_net" then
         return func(self, unit, scratchpad, action_data)
     end
 
-    local variant_action_data = table.clone(action_data)
-
-    variant_action_data.max_net_distance = state.requested_attack.manual_range_max or 28
-
-    local result = func(self, unit, scratchpad, variant_action_data)
-
-    state.netter_fire_cooldown_until = gameplay_time() + (state.requested_attack.cooldown_duration or 5)
-    mod:info("Versus Mode: Sniper Netter fired; 28 m sweep and 5.0 s cooldown applied.")
-
+    if state.variant_id == "sniper_netter" then
+        action_data = table.clone(action_data)
+        action_data.max_net_distance = state.requested_attack.manual_range_max or 28
+    end
+    local result = func(self, unit, scratchpad, action_data)
+    state.netter_fire_cooldown_until = gameplay_time() + 2
     return result
 end)
 

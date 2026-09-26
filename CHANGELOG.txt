@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.3 — Poxburster knockback and shot cooldowns (2026-09-27)
+----------------------------------------------------------
+
+- Restored native stagger/knockback for controlled Poxbursters only.
+- Grenadiers retain stagger immunity; suppression handling is unchanged.
+- Sniper and Trapper shots remain immediate, with a two-second cooldown.
+- Regular and long-range Trappers share the cooldown and HUD indication.
+- Isolated cooldown boundary and immunity checks passed; live play not tested.
+
 3.0.2 — Local night vision lighting (2026-09-27)
 -----------------------------------------------
 
