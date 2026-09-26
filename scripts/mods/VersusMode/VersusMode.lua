@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.1"
+mod.version = "3.0.2"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -20545,7 +20545,69 @@ function VersusModeState.update_remote_controls()
     end
 end
 
+-- Local fill lighting, not exposure: UI and existing bright light sources keep
+-- their native tone mapping. The light is never spawned through the network.
+function VersusModeState.clear_night_vision()
+    local light = mod._night_vision_light
+    mod._night_vision_light = nil
+    if not light then return end
+    local worlds = Managers.world
+    if worlds and worlds:has_world("level_world")
+        and worlds:world("level_world") == light.world and Unit.alive(light.unit) then
+        World.destroy_unit(light.world, light.unit)
+    end
+end
+
+function VersusModeState.update_night_vision()
+    local worlds = Managers.world
+    local world = worlds and worlds:has_world("level_world") and worlds:world("level_world")
+    local flight = Managers.free_flight
+    local strength = math_max(0, math_min(5, setting("heretic_night_vision_strength")))
+    if not world or not setting("enable_versus_mode") or not setting("heretic_night_vision")
+        or not VersusModeState.local_infected_view() or strength == 0
+        or not flight or not flight:is_in_free_flight() then
+        VersusModeState.clear_night_vision()
+        return
+    end
+    local ok, position, rotation = pcall(flight.camera_position_rotation, flight, "global")
+    if not ok or not position or not rotation then
+        VersusModeState.clear_night_vision()
+        return
+    end
+    local resource = "content/weapons/player/attachments/flashlights/flashlight_01/flashlight_01"
+    if mod:package_status(resource) ~= "loaded" then return end
+    local light = mod._night_vision_light
+    if light and (light.world ~= world or not Unit.alive(light.unit)) then
+        VersusModeState.clear_night_vision()
+        light = nil
+    end
+    if not light then
+        local unit = World.spawn_unit_ex(world, resource, nil, position)
+        if Unit.num_lights(unit) < 1 then
+            World.destroy_unit(world, unit)
+            return
+        end
+        local source = Unit.light(unit, 1)
+        light = {world = world, unit = unit, source = source}
+        mod._night_vision_light = light
+        Unit.set_local_scale(unit, 1, Vector3(0.001, 0.001, 0.001))
+        Light.set_spot_reflector(source, false)
+        Light.set_casts_shadows(source, false)
+        Light.set_volumetric_intensity(source, 0)
+        Light.set_falloff_start(source, 40)
+        Light.set_falloff_end(source, 80)
+        Light.set_color_filter(source, Vector3(1, 1, 1))
+        Light.set_correlated_color_temperature(source, 6500)
+        Light.set_enabled(source, true)
+    end
+    Unit.set_local_position(light.unit, 1, position)
+    Unit.set_local_rotation(light.unit, 1, rotation)
+    Light.set_intensity(light.source, strength * 0.5)
+    World.update_unit(world, light.unit)
+end
+
 mod.update = function(dt)
+    VersusModeState.update_night_vision()
     if mod._realms_compat then
         mod._realms_compat.update(setting("enable_versus_mode"))
     end
@@ -21602,22 +21664,6 @@ function VersusModeState.install_client_view_hooks()
             viewport,
             default_shading_environment_resource
         )
-        -- Native shading resets exposure every frame. Only modify a viewport
-        -- with camera data, so early-return/loading frames cannot accumulate it.
-        local camera_data = self._viewport_camera_data
-        local gameplay_camera = camera_data and (
-            camera_data[viewport]
-            or camera_data[Viewport.get_data(viewport, "overridden_viewport")]
-        )
-        if self._world == world and gameplay_camera
-            and setting("enable_versus_mode")
-            and setting("heretic_night_vision")
-            and VersusModeState.local_infected_view() then
-            local exposure = ShadingEnvironment.scalar(shading_environment, "exposure_compensation")
-            local strength = math.max(0, math_min(5, setting("heretic_night_vision_strength")))
-            ShadingEnvironment.set_scalar(shading_environment, "exposure_compensation", exposure + strength)
-        end
-
         local death_camera = mod._death_camera
         local amount = death_camera and death_camera.greyscale_amount or 0
 
@@ -24759,6 +24805,7 @@ function VersusModeState.release_remote_controls(reason, suppress_respawn)
 end
 
 mod.on_game_state_changed = function(status, state_name)
+    if status == "exit" then VersusModeState.clear_night_vision() end
     if state_name == "RealmsPreparationState" and status == "enter" then
         VersusModeState.begin_realms_preparation_roster()
         -- Realms lazy-loads the preparation view after on_all_mods_loaded.
@@ -25059,6 +25106,7 @@ mod.on_setting_changed = function(setting_id)
 end
 
 mod.on_disabled = function()
+    VersusModeState.clear_night_vision()
     if mod._control and mod._control.remote_client then
         VersusModeState.send_client_action("release")
     end
@@ -25093,6 +25141,7 @@ mod.on_disabled = function()
 end
 
 mod.on_unload = function()
+    VersusModeState.clear_night_vision()
     VersusModeState.clear_allied_heretic_outlines()
     VersusModeState.clear_operative_outlines()
     VersusModeState.finish_death_camera(false)

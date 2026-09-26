@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.2 — Local night vision lighting (2026-09-27)
+-----------------------------------------------
+
+- Replaced the exposure boost with a camera-following local white fill light.
+- Added package loading and cleanup for role changes, world transitions and unload.
+- Fill light has no shadows or volumetric beam, with an 80 m outer radius.
+- Lifecycle checks passed; visual balance requires in-game validation.
+
 3.0.1 — Captain phase crash repair (2026-09-27)
 ----------------------------------------------
 

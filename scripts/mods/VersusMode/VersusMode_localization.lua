@@ -405,12 +405,12 @@ return {
         ru = "Ночное зрение еретиков",
     },
     heretic_night_vision_tooltip = {
-        en = "Boosts exposure only while playing on the Heretic side, including the respawn camera. Normal lighting returns when switching to Operatives.",
-        ru = "Повышает яркость только на стороне еретиков, включая камеру ожидания возрождения. При переходе за оперативников возвращается обычное освещение.",
+        en = "Adds local white fill lighting around the Heretic camera without changing exposure. Removed when returning to Operatives.",
+        ru = "Добавляет белую подсветку окружения вокруг камеры еретика без изменения экспозиции. При переходе за оперативников подсветка отключается.",
     },
     heretic_night_vision_strength = {
-        en = "Night vision brightness",
-        ru = "Яркость ночного зрения",
+        en = "Night vision fill light",
+        ru = "Сила подсветки окружения",
     },
     camera_group = {
         en = "Camera — Local",

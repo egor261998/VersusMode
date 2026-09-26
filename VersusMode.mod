@@ -8,11 +8,11 @@ return {
             mod_localization = "VersusMode/scripts/mods/VersusMode/VersusMode_localization",
         })
     end,
-    packages = {},
+    packages = { "content/weapons/player/attachments/flashlights/flashlight_01/flashlight_01" },
     load_after = {
         "dmf",
         "Realms",
     },
-    version = "3.0.1",
+    version = "3.0.2",
     mod_id = "VersusMode",
 }
