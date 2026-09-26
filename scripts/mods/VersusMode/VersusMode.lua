@@ -22329,6 +22329,33 @@ mod:hook(BtSummonMinionsAction, "leave", function(func, self, unit, breed, black
     return func(self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
 end)
 
+-- Player-controlled gunners do not need the AI's aim/turn anticipation.
+-- Enter shooting through the native action so weapon setup and burst cadence
+-- remain intact. The short-lived copy avoids changing ordinary AI templates.
+mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchpad, action_data, breed)
+    local state = VersusModeState.control_for_unit(unit)
+    local attack = state and state.requested_attack
+
+    if not state or state.unit ~= unit or not state.attack_deadline
+        or not VersusModeState.gunner_breeds[state.breed.name]
+        or not attack or attack.gunner_combat_range ~= "far" then
+        return func(self, unit, t, scratchpad, action_data, breed)
+    end
+
+    MinionAttack.aim_at_target(unit, scratchpad, t, action_data, breed)
+    scratchpad.rotation_duration = nil
+    scratchpad.start_rotation_timing = nil
+    if scratchpad.is_anim_rotation_driven then
+        MinionMovement.set_anim_rotation_driven(scratchpad, false)
+    end
+    local MinionPerception = require("scripts/utilities/minion_perception")
+    MinionPerception.set_target_lock(unit, scratchpad.perception_component, false)
+    local immediate_action = table.clone(action_data)
+    immediate_action.before_shoot_effect_template_timing = 0
+    self:_start_shooting(unit, t, scratchpad, immediate_action)
+    state.attack_phase = "FIRING"
+end)
+
 -- Ranged actions can hand control to AI strafing while they shoot.
 -- Possession already supplies deliberate WASD positioning, so suppress
 -- that autonomous transition during an explicit ranged command.
@@ -23364,6 +23391,16 @@ mod:hook(BtSniperShootAction, "_update_aiming", function(func, self, unit, t, dt
         end
     end
 
+    if state and state.unit == unit and state.breed.name == SNIPER_BREED_NAME
+        and state.attack_deadline and attack and not attack.laser_only
+        and update_controlled_sniper_aim(self, state, unit, scratchpad, action_data) then
+        scratchpad.shoot_at_t = nil
+        scratchpad.next_threat_timing = nil
+        scratchpad.scope_reflection_timing = nil
+        self:_start_shooting(unit, t, scratchpad, action_data)
+        return
+    end
+
     return func(self, unit, t, dt, scratchpad, action_data)
 end)
 
@@ -23473,10 +23510,9 @@ mod:hook(BtShootNetAction, "_update_aiming", function(func, self, unit, t, scrat
     scratchpad.current_aim_position:store(aim_position)
     state.attack_phase = "AIMING NET"
 
-    if t > scratchpad.shoot_t then
-        self:_start_shooting(unit, scratchpad, action_data)
-        state.attack_phase = "FIRED"
-    end
+    -- The camera aim is already prepared; skip the AI's net wind-up timer.
+    self:_start_shooting(unit, scratchpad, action_data)
+    state.attack_phase = "FIRED"
 end)
 
 mod:hook(BtShootNetAction, "_start_shooting", function(func, self, unit, scratchpad, action_data)

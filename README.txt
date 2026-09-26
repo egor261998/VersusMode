@@ -220,3 +220,12 @@ manual selection again. All three always use the camera crosshair, like
 the Trapper, in first and third person. Target lock is disabled for them;
 their native weapon, spread, volley timing and melee attacks are retained.
 The picker now has room for all ten breeds plus the optional Trapper variant.
+
+Local changes: immediate controlled ranged fire
+----------------------------------------------
+Scab Gunner, Dreg Gunner, Reaper, Trapper and Sniper skip AI preparation
+waits before firing under player control. Native shooting still creates
+projectiles and handles weapon effects, burst cadence and cooldowns.
+Sniper laser-only aim remains non-firing. Ordinary AI is unaffected.
+Melee, grenade-throw, pounce and death animations are not shortened.
+This removes preparation timers, not the next engine update or network delay.
