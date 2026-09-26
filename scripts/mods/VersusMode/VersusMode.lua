@@ -8651,13 +8651,13 @@ function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, a
             add_projected(anchor_position + offset)
         end
 
-        radius = radius + 10
+        radius = radius + math_max(10, (maximum_distance - minimum_distance) / 6)
     end
 
     return positions, #positions
 end
 
-function VersusModeState.validate_random_spawn_candidate(spawn_position, physics_world, minimum_distance, maximum_distance, disallowed_positions, breed_name)
+function VersusModeState.validate_random_spawn_candidate(spawn_position, physics_world, minimum_distance, maximum_distance, disallowed_positions, breed_name, relaxed)
     if not spawn_position or not physics_world then
         return false, "missing position or collision world"
     end
@@ -8693,20 +8693,20 @@ function VersusModeState.validate_random_spawn_candidate(spawn_position, physics
         return false, string.format("%.1f m from %s is below the %.1f m minimum", nearest_distance, nearest_name, minimum_distance)
     end
 
-    if nearest_distance > maximum_distance then
+    if not relaxed and nearest_distance > maximum_distance then
         return false, string.format("%.1f m from survivors exceeds the %.1f m maximum", nearest_distance, maximum_distance)
     end
 
     local visible_name = VersusModeState.visible_to_survivor(spawn_position, physics_world, breed_name)
 
-    if visible_name then
+    if visible_name and not relaxed then
         return false, "visible to " .. visible_name
     end
 
     return true
 end
 
-function VersusModeState.random_safe_spawn(role)
+function VersusModeState.random_safe_spawn(role, relaxed)
     if not is_server() or not role then
         return false, "Random Safe selection requires the host"
     end
@@ -8722,10 +8722,13 @@ function VersusModeState.random_safe_spawn(role)
         return false, "navmesh, collision or survivor spawn data is unavailable"
     end
 
-    local minimum_distance = math_max(0, setting("infected_min_spawn_distance"))
+    local minimum_distance = relaxed and 0 or math_max(0, setting("infected_min_spawn_distance"))
     local maximum_distance = math_max(VersusModeState.random_spawn_max_distance, minimum_distance + 5)
-    local fallback_maximum_distance = math_max(VersusModeState.random_spawn_fallback_max_distance, minimum_distance + 5)
+    local fallback_maximum_distance = math_max(relaxed and 200 or VersusModeState.random_spawn_fallback_max_distance, minimum_distance + 5)
     local disallowed_positions = VersusModeState.random_spawn_disallowed(role)
+    if relaxed then
+        disallowed_positions = {}
+    end
     local positions = {}
     local num_positions = 0
     local candidate_source = "native"
@@ -8760,7 +8763,9 @@ function VersusModeState.random_safe_spawn(role)
         end
     end
 
-    if num_positions < 1 then
+    if num_positions < 1 or relaxed then
+        local native_positions = positions
+        local native_count = num_positions
         candidate_source = "navmesh fallback"
         positions, num_positions = VersusModeState.random_spawn_navmesh_candidates(
             nav_world,
@@ -8770,12 +8775,34 @@ function VersusModeState.random_safe_spawn(role)
             fallback_maximum_distance
         )
         mod:info(
-            "Versus Mode: Random Safe native query returned no candidates (%s); navmesh fallback generated %d.",
+            "Versus Mode: Random Safe supplemental navmesh search (%s) generated %d candidates.",
             tostring(query_diagnostic),
             num_positions
         )
 
+        if relaxed then
+            for index = 1, native_count do
+                positions[#positions + 1] = native_positions[index]
+            end
+
+            -- The squad occupies playable space even when hidden spawn groups
+            -- are unavailable. Project each anchor and still check headroom.
+            for _, survivor_position in ipairs(survivor_positions) do
+                local ok, position = pcall(
+                    VersusModeState.nav_queries.position_on_mesh_guaranteed,
+                    nav_world, survivor_position, 5, 10
+                )
+                if ok and position then
+                    positions[#positions + 1] = position
+                end
+            end
+            num_positions = #positions
+        end
+
         if num_positions < 1 then
+            if not relaxed then
+                return VersusModeState.random_safe_spawn(role, true)
+            end
             return false, "no native or fallback navmesh spawn candidate was found at least "
                 .. string.format("%.0f metres from every survivor", minimum_distance)
         end
@@ -8812,7 +8839,8 @@ function VersusModeState.random_safe_spawn(role)
                 minimum_distance,
                 fallback_maximum_distance,
                 disallowed_positions,
-                role.respawn_breed
+                role.respawn_breed,
+                relaxed
             )
 
             if valid then
@@ -8900,7 +8928,8 @@ function VersusModeState.random_safe_spawn(role)
         )
 
         return true,
-            string.format("Random Safe: hidden, %.0f–%.0f m from nearest survivor", minimum_distance, selected_maximum),
+            (relaxed and "Fallback spawn: visibility and distance limits relaxed"
+                or string.format("Random Safe: hidden, %.0f–%.0f m from nearest survivor", minimum_distance, selected_maximum)),
             spawn_position,
             spawn_rotation
     end
@@ -8916,6 +8945,10 @@ function VersusModeState.random_safe_spawn(role)
         duplicate_count,
         tostring(last_reason)
     )
+
+    if not relaxed then
+        return VersusModeState.random_safe_spawn(role, true)
+    end
 
     return false, "no candidate passed final safety checks (" .. tostring(last_reason) .. ")"
 end
