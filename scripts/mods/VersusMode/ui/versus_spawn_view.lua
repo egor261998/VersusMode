@@ -16,11 +16,8 @@ VersusModeSpawnView.on_enter = function(self)
     local widgets = self._widgets_by_name
     widgets.title.content.text = mod:localize("spawn_picker_title")
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
-    widgets.confirm.content.text = mod:localize("spawn_picker_confirm")
     widgets.cancel.content.text = mod:localize("spawn_picker_cancel")
-    widgets.confirm.content.hotspot.pressed_callback = callback(self, "cb_confirm")
     widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_close")
-    widgets.confirm.content.hotspot.disabled = self._selected == nil
     for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]
         local entry = self._choices[i]

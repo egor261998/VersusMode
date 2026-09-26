@@ -1,7 +1,6 @@
 return {
     spawn_picker_title = { en = "Choose your Heretic", ru = "Выбери еретика" },
-    spawn_picker_hint = { en = "Random choice highlighted. Hover to change; click a card or Confirm.", ru = "Случайный выбор выделен. Наведи мышь и нажми на карточку или «Выбрать»." },
-    spawn_picker_confirm = { en = "Confirm", ru = "Выбрать" },
+    spawn_picker_hint = { en = "Random choice highlighted. Click an enemy card to select and close.", ru = "Случайный выбор выделен. Нажми на карточку врага — выбор применится, меню закроется." },
     spawn_picker_cancel = { en = "Cancel", ru = "Отмена" },
     spawn_picker_failed = { en = "Selection unavailable. Check the host settings.", ru = "Выбор недоступен. Проверь настройки хоста." },
     mod_name = {

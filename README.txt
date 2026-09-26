@@ -204,8 +204,8 @@ Local changes: reinforcement icon picker
 ---------------------------------------
 The existing Cycle next reinforcement binding (Space in this installation)
 now opens a mouse menu while awaiting deployment. Each opening highlights
-a random available card. Hover another card to highlight it, then click it
-or Confirm to select. Escape/Cancel keeps the previous reinforcement.
+a random available card. Click any enemy card to select it and close the
+menu immediately. Escape/Cancel keeps the previous reinforcement.
 The respawn countdown is preserved; automatic deployment waits while the
 menu is open. A lost client heartbeat expires after six seconds.
 Cards use the mod's existing enemy portraits, or its neutral skull emblem
