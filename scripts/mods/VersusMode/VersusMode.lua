@@ -3319,7 +3319,7 @@ function VersusModeState.available_spawn_choices()
     return choices
 end
 
-function VersusModeState.cycle_respawn(role, requesting_peer_id)
+function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, variant_id)
     if not is_server()
         or not VersusModeState.spawn_selection_enabled()
         or not role
@@ -3348,6 +3348,19 @@ function VersusModeState.cycle_respawn(role, requesting_peer_id)
     end
 
     local selected = choices[current_index % #choices + 1]
+
+    if breed_name ~= nil then
+        selected = nil
+        for i = 1, #choices do
+            if choices[i].name == breed_name and choices[i].variant_id == variant_id then
+                selected = choices[i]
+                break
+            end
+        end
+        if not selected then
+            return false
+        end
+    end
 
     role.respawn_breed = selected.name
     role.respawn_variant = selected.variant_id
@@ -17152,6 +17165,7 @@ function VersusModeState.update_automatic_respawns()
             and t >= (role.respawn_ready_at or math.huge)
             and t >= (role.automatic_respawn_not_before or 0)
             and t >= (role.automatic_respawn_retry_at or 0)
+            and t >= (role.spawn_picker_until or 0)
             and not role.assigned_boss_unit
 
         if ready then
@@ -18230,7 +18244,7 @@ function VersusModeState.receive_remote_action(peer_id, payload)
         return false
     end
 
-    if payload.action == "cycle_spawn" then
+    if payload.action == "cycle_spawn" or payload.action == "select_spawn" or payload.action == "spawn_picker" then
         local role = VersusModeState.role_for_peer(peer_id)
 
         if not role
@@ -18249,6 +18263,19 @@ function VersusModeState.receive_remote_action(peer_id, payload)
             return false
         end
 
+        if payload.action == "spawn_picker" then
+            if type(payload.picker_open) ~= "boolean" or VersusModeState.control_for_peer(peer_id) then
+                return false
+            end
+            role.spawn_picker_until = payload.picker_open and gameplay_time() + 6 or nil
+            return true
+        elseif payload.action == "select_spawn" then
+            if type(payload.spawn_breed) ~= "string"
+                or payload.spawn_variant ~= nil and type(payload.spawn_variant) ~= "string" then
+                return false
+            end
+            return VersusModeState.cycle_respawn(role, peer_id, payload.spawn_breed, payload.spawn_variant)
+        end
         return VersusModeState.cycle_respawn(role, peer_id)
     end
 
@@ -19381,17 +19408,51 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
         return
     end
 
-    if not is_server() then
-        local sent, send_error = VersusModeState.send_client_action("cycle_spawn")
+    Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+end
 
-        if not sent then
-            mod:echo("Versus Mode: " .. mod:localize("infected_spawn_cycle_failed", tostring(send_error)))
-        end
-
-        return
+mod.spawn_picker_choices = function()
+    local choices = VersusModeState.available_spawn_choices()
+    local result = {}
+    for i = 1, #choices do
+        local entry = choices[i]
+        result[i] = {
+            name = entry.name, variant_id = entry.variant_id,
+            label = VersusModeState.respawn_label(entry.name, entry.variant_id),
+            portrait = ENEMY_PORTRAITS[entry.name] or ENEMY_PORTRAIT_FALLBACK,
+        }
     end
+    return result
+end
 
-    VersusModeState.cycle_respawn(role)
+mod.spawn_picker_available = function()
+    local role = VersusModeState.local_role()
+    return setting("enable_versus_mode") and VersusModeState.spawn_selection_enabled()
+        and role and role.infected_human and not role.assigned_boss_unit
+        and not mod._control and not mod._death_camera
+end
+
+mod.spawn_picker_hold = function(open)
+    local role = VersusModeState.local_role()
+    if is_server() then
+        if role then
+            role.spawn_picker_until = open and gameplay_time() + 6 or nil
+        end
+    else
+        return VersusModeState.send_client_action("spawn_picker", { picker_open = open })
+    end
+end
+
+mod.spawn_picker_select = function(entry)
+    if not entry or not mod.spawn_picker_available() then
+        return false
+    end
+    if is_server() then
+        return VersusModeState.cycle_respawn(VersusModeState.local_role(), nil, entry.name, entry.variant_id)
+    end
+    return VersusModeState.send_client_action("select_spawn", {
+        spawn_breed = entry.name, spawn_variant = entry.variant_id,
+    })
 end
 
 -- Existing saved binds from the selector prototype now open the roster menu.
@@ -20429,6 +20490,14 @@ mod.update = function(dt)
     VersusModeState.update_survivor_spectating(dt)
     VersusModeState.refresh_possession_camera_player_body()
     VersusModeState.update_redeployment_geography()
+    local picker_ui = Managers.ui
+    if picker_ui and picker_ui:view_instance("versus_mode_spawn_view") then
+        if mod.spawn_picker_available() then
+            if is_server() then mod.spawn_picker_hold(true) end
+        else
+            picker_ui:close_view("versus_mode_spawn_view")
+        end
+    end
     VersusModeState.update_automatic_respawns()
     VersusModeState.update_last_survivor()
     VersusModeState.update_last_survivor_notice()

@@ -1,4 +1,9 @@
 return {
+    spawn_picker_title = { en = "Choose your Heretic", ru = "Выбери еретика" },
+    spawn_picker_hint = { en = "Random choice highlighted. Hover to change; click a card or Confirm.", ru = "Случайный выбор выделен. Наведи мышь и нажми на карточку или «Выбрать»." },
+    spawn_picker_confirm = { en = "Confirm", ru = "Выбрать" },
+    spawn_picker_cancel = { en = "Cancel", ru = "Отмена" },
+    spawn_picker_failed = { en = "Selection unavailable. Check the host settings.", ru = "Выбор недоступен. Проверь настройки хоста." },
     mod_name = {
         en = "Versus Mode",
         ["zh-cn"] = "对抗模式",
@@ -640,7 +645,8 @@ return {
         ["zh-tw"] = "主機設定。異端主機或相容用戶端在部署視角中等待增援時，可切換自己的下一名專家敵人或精英敵人。目前增援計時保持不變。",
     },
     cycle_infected_spawn_keybind = {
-        en = "Cycle next reinforcement",
+        en = "Choose reinforcement (icons)",
+        ru = "Выбрать еретика (иконки)",
         ["zh-cn"] = "切换下一次增援",
         ["zh-tw"] = "切換下一次增援",
     },
@@ -690,7 +696,8 @@ return {
         ["zh-tw"] = "無法請求下一次增援：%s",
     },
     infected_spawn_cycle_hud = {
-        en = "Cycle next reinforcement",
+        en = "Choose reinforcement (icons)",
+        ru = "Выбрать еретика (иконки)",
         ["zh-cn"] = "切换下一次增援",
         ["zh-tw"] = "切換下一次增援",
     },

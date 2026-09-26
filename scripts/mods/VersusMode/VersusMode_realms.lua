@@ -389,6 +389,16 @@ function RealmsBridge.send_action(action, sequence, extra)
         payload.hound_charge_fraction = math.max(0, math.min(1, extra.hound_charge_fraction))
     end
 
+    if extra and type(extra.spawn_breed) == "string" then
+        payload.spawn_breed = extra.spawn_breed
+    end
+    if extra and type(extra.spawn_variant) == "string" then
+        payload.spawn_variant = extra.spawn_variant
+    end
+    if extra and type(extra.picker_open) == "boolean" then
+        payload.picker_open = extra.picker_open
+    end
+
     return send(RPC_ACTION, "host", payload)
 end
 

@@ -200,3 +200,15 @@ Restart Darktide to load these changes. Install this modified version on the
 Realms host for authoritative selection; use the same copy on clients for
 matching descriptions. Nearest-target distance is measured from the enemy
 you control, not from the spectator camera.
+Local changes: reinforcement icon picker
+---------------------------------------
+The existing Cycle next reinforcement binding (Space in this installation)
+now opens a mouse menu while awaiting deployment. Each opening highlights
+a random available card. Hover another card to highlight it, then click it
+or Confirm to select. Escape/Cancel keeps the previous reinforcement.
+The respawn countdown is preserved; automatic deployment waits while the
+menu is open. A lost client heartbeat expires after six seconds.
+Cards use the mod's existing enemy portraits, or its neutral skull emblem
+with the breed name where this mod has no portrait mapping.
+Install this same modified copy on both host and clients for direct selection.
+The host validates each requested breed and variant against its allowed list.
