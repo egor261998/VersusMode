@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.0"
+mod.version = "3.0.1"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -22339,6 +22339,46 @@ mod:hook(VersusModeState.combat_range_user_behavior, "update_minion_phase", func
     end
 
     return func(self, unit, blackboard, dt, t)
+end)
+
+-- A Captain can retain a ranged phase request after its combat range has
+-- changed to melee. Resolve against this instance's loadout before vanilla
+-- dereferences phases[wanted_phase_name]. Keep valid transitions untouched.
+mod:hook(VersusModeState.combat_range_user_behavior, "_switch_phase", function(func, self, t, phases, wanted_phase_name, wanted_combat_range)
+    local breed = self._breed
+    if setting("enable_versus_mode") and breed and CAPTAIN_BREEDS[breed.name]
+        and type(phases) == "table" and not phases[wanted_phase_name] then
+        local current = self._phase_component and self._phase_component.current_phase
+        local range = self._phase_template and self._phase_template[wanted_combat_range]
+        local entry = range and range.entry_phase
+        local replacement = current and phases[current] and current
+
+        if not replacement and type(entry) == "string" and phases[entry] then
+            replacement = entry
+        elseif not replacement and type(entry) == "table" then
+            for _, name in ipairs(entry) do
+                if phases[name] then
+                    replacement = name
+                    break
+                end
+            end
+        end
+
+        if not replacement then
+            -- No valid phase exists: leave the transition pending for a later
+            -- update instead of inventing a weapon or dereferencing nil.
+            return
+        end
+
+        if not self._versus_phase_repair_logged then
+            self._versus_phase_repair_logged = true
+            mod:warning("Versus Mode: repaired Captain phase %s in range %s to %s.",
+                tostring(wanted_phase_name), tostring(wanted_combat_range), tostring(replacement))
+        end
+        wanted_phase_name = replacement
+    end
+
+    return func(self, t, phases, wanted_phase_name, wanted_combat_range)
 end)
 
 mod:hook(MinionPerceptionExtension, "update", function(func, self, unit, dt, t, ...)

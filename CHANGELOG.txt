@@ -1,6 +1,17 @@
 Versus Mode changelog
 =====================
 
+3.0.1 — Captain phase crash repair (2026-09-27)
+----------------------------------------------
+
+- Repair invalid Captain phase requests against the current combat range and
+  the live loadout before the native phase transition runs. Prefer a valid
+  current phase, then a valid entry phase; preserve normal transitions.
+- Reproduced the plasma_pistol/melee crash from the server log in an isolated
+  native-function test and verified the repaired phase and weapon state.
+- Host and participating clients must all use version 3.0.1.
+- In-game server validation remains pending.
+
 3.0.0 — Local custom build (2026-09-26)
 --------------------------------------
 
