@@ -451,6 +451,8 @@ local vector3_normalize = Vector3.normalize
 local vector3_up = Vector3.up
 
 local DEFAULTS = {
+    heretic_night_vision = true,
+    heretic_night_vision_strength = 3,
     selection_range = 50,
     move_speed_percent = 90,
     attack_burst_duration = 2,
@@ -21549,7 +21551,7 @@ function VersusModeState.install_client_view_hooks()
     end)
 
     -- Global free flight renders with the bottom gameplay viewport's shading
-    -- callback. Apply the death-only override after Darktide has blended its
+    -- callback. Apply local vision overrides after Darktide has blended its
     -- normal environment and moods; on the first frame after cleanup, the
     -- native callback owns these values again without a persisted mood.
     mod:hook(VersusModeState.camera_manager, "shading_callback", function(
@@ -21567,6 +21569,22 @@ function VersusModeState.install_client_view_hooks()
             viewport,
             default_shading_environment_resource
         )
+        -- Native shading resets exposure every frame. Only modify a viewport
+        -- with camera data, so early-return/loading frames cannot accumulate it.
+        local camera_data = self._viewport_camera_data
+        local gameplay_camera = camera_data and (
+            camera_data[viewport]
+            or camera_data[Viewport.get_data(viewport, "overridden_viewport")]
+        )
+        if self._world == world and gameplay_camera
+            and setting("enable_versus_mode")
+            and setting("heretic_night_vision")
+            and VersusModeState.local_infected_view() then
+            local exposure = ShadingEnvironment.scalar(shading_environment, "exposure_compensation")
+            local strength = math.max(0, math_min(5, setting("heretic_night_vision_strength")))
+            ShadingEnvironment.set_scalar(shading_environment, "exposure_compensation", exposure + strength)
+        end
+
         local death_camera = mod._death_camera
         local amount = death_camera and death_camera.greyscale_amount or 0
 

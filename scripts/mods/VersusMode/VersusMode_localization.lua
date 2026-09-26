@@ -400,6 +400,18 @@ return {
         ["zh-cn"] = "部署期间保护未活动的行动队员",
         ["zh-tw"] = "部署期間保護未活動的行動隊員",
     },
+    heretic_night_vision = {
+        en = "Heretic night vision",
+        ru = "Ночное зрение еретиков",
+    },
+    heretic_night_vision_tooltip = {
+        en = "Boosts exposure only while playing on the Heretic side, including the respawn camera. Normal lighting returns when switching to Operatives.",
+        ru = "Повышает яркость только на стороне еретиков, включая камеру ожидания возрождения. При переходе за оперативников возвращается обычное освещение.",
+    },
+    heretic_night_vision_strength = {
+        en = "Night vision brightness",
+        ru = "Яркость ночного зрения",
+    },
     camera_group = {
         en = "Camera — Local",
         ["zh-cn"] = "镜头 — 本地",
