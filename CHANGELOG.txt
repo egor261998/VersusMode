@@ -1,6 +1,20 @@
 Versus Mode changelog
 =====================
 
+3.0.0 — Local custom build (2026-09-26)
+--------------------------------------
+
+- Added one-click reinforcement cards with authoritative selection and HUD confirmation.
+- Restricted the reinforcement roster and select the nearest target on Q.
+- Fixed Q hold, gunner aiming/fire timing, and native gunfire FX configuration.
+- Suppressed involuntary staggering and suppression while controlling a living enemy.
+- Added automatic, adjustable Heretic night vision through an exposure boost.
+- Added a wider fallback spawn search when normal safe spawning fails, relaxing
+  visibility and distance limits while retaining navmesh and headroom checks.
+- Host and participating clients must all use version 3.0.0.
+- Lua syntax and isolated logic checks passed; the newest vision and spawn changes
+  still require in-game visual and multiplayer validation.
+
 0.1.2 — Stable
 --------------
 
