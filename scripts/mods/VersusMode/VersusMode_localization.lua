@@ -1,4 +1,6 @@
 return {
+    spawn_picker_pending = { en = "Applying selection: %s...", ru = "Применяется выбор: %s..." },
+    spawn_picker_unconfirmed = { en = "Selection not confirmed. Retry; host and client need the same mod version.", ru = "Выбор не подтверждён. Попробуй снова; у хоста и клиента должна быть одинаковая версия мода." },
     spawn_picker_title = { en = "Choose your Heretic", ru = "Выбери еретика" },
     spawn_picker_hint = { en = "Random choice highlighted. Click an enemy card to select and close.", ru = "Случайный выбор выделен. Нажми на карточку врага — выбор применится, меню закроется." },
     spawn_picker_cancel = { en = "Cancel", ru = "Отмена" },

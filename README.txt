@@ -238,3 +238,11 @@ Controlled Gunner volleys bypass AI entry cooldown, body-angle gating and
 suppression delay while retaining native projectile and burst handling.
 Living possessed enemies ignore suppression and stagger, including blast
 reactions. Damage and death are not disabled; ordinary AI keeps its reactions.
+
+Local changes: authoritative picker confirmation
+-----------------------------------------------
+Clicking a card now waits for the assigned breed and variant to match before
+closing the picker. Sending a client request alone is not confirmation.
+The existing NEXT REINFORCEMENT HUD uses this same authoritative assignment.
+An unconfirmed request shows an error after five seconds and allows retry.
+All module and asset paths remain relative; no machine-specific paths are used.

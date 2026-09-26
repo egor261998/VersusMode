@@ -14,6 +14,8 @@ VersusModeSpawnView.on_enter = function(self)
     self._heartbeat_at = 0
     self._hovered = nil
     self._selection_submitted = false
+    self._pending_choice = nil
+    self._pending_elapsed = 0
     local widgets = self._widgets_by_name
     widgets.title.content.text = mod:localize("spawn_picker_title")
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
@@ -41,7 +43,9 @@ VersusModeSpawnView.cb_choose_entry = function(self, entry)
     end
     self._selection_submitted = true
     if mod.spawn_picker_select(entry) then
-        self:cb_close()
+        self._pending_choice = { name = entry.name, variant_id = entry.variant_id }
+        self._pending_elapsed = 0
+        self._widgets_by_name.hint.content.text = mod:localize("spawn_picker_pending", entry.label)
     else
         self._selection_submitted = false
         self._widgets_by_name.hint.content.text = mod:localize("spawn_picker_failed")
@@ -63,6 +67,19 @@ end
 
 VersusModeSpawnView.update = function(self, dt, t, input_service)
     local pass_input, pass_draw = VersusModeSpawnView.super.update(self, dt, t, input_service)
+    if self._pending_choice then
+        if mod.spawn_picker_matches(self._pending_choice) then
+            self._pending_choice = nil
+            self:cb_close()
+            return pass_input, pass_draw
+        end
+        self._pending_elapsed = self._pending_elapsed + dt
+        if self._pending_elapsed >= 5 then
+            self._pending_choice = nil
+            self._selection_submitted = false
+            self._widgets_by_name.hint.content.text = mod:localize("spawn_picker_unconfirmed")
+        end
+    end
     if not mod.spawn_picker_available() then
         self:cb_close()
         return pass_input, pass_draw

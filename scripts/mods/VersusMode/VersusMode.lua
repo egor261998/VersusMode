@@ -19461,6 +19461,17 @@ mod.spawn_picker_hold = function(open)
     end
 end
 
+mod.spawn_picker_matches = function(entry)
+    if not entry then return false end
+    local state = mod._control
+    if state and state.possessed and state.breed then
+        return state.breed.name == entry.name and state.variant_id == entry.variant_id
+    end
+    local role = VersusModeState.local_role()
+    return role and role.infected_human and role.respawn_breed == entry.name
+        and role.respawn_variant == entry.variant_id or false
+end
+
 mod.spawn_picker_select = function(entry)
     if not entry or not mod.spawn_picker_available() then
         return false
