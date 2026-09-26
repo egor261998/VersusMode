@@ -229,3 +229,12 @@ projectiles and handles weapon effects, burst cadence and cooldowns.
 Sniper laser-only aim remains non-firing. Ordinary AI is unaffected.
 Melee, grenade-throw, pounce and death animations are not shortened.
 This removes preparation timers, not the next engine update or network delay.
+
+Local changes: input, firing and controlled flinch fixes
+------------------------------------------------------
+Repeated quick-wield input no longer resets the Q hold timer. A long hold
+switches targeting once; a short press still selects the nearest target.
+Controlled Gunner volleys bypass AI entry cooldown, body-angle gating and
+suppression delay while retaining native projectile and burst handling.
+Living possessed enemies ignore suppression and stagger, including blast
+reactions. Damage and death are not disabled; ordinary AI keeps its reactions.

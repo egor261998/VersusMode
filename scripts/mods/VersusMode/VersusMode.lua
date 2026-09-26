@@ -20273,7 +20273,7 @@ function VersusModeState.update_vanilla_enemy_input(state, input_gated)
     local swap_pressed = VersusModeState.native_input_action(input_service, "quick_wield")
     local swap = mod._vanilla_weapon_swap_state
 
-    if swap_pressed then
+    if swap_pressed and not swap then
         local key_info = VersusModeState.native_binding_key_info("quick_wield")
 
         if VersusModeState.native_quick_wield_holdable(key_info) then
@@ -20306,7 +20306,11 @@ function VersusModeState.update_vanilla_enemy_input(state, input_gated)
             end
         else
             if not swap.long_action_fired then
-                mod.cycle_target(true, true)
+                if gameplay_time() - swap.started_at >= setting("long_hold_threshold") then
+                    mod.toggle_target_lock(true, true)
+                else
+                    mod.cycle_target(true, true)
+                end
             end
 
             mod._vanilla_weapon_swap_state = nil
@@ -20774,6 +20778,42 @@ mod:hook(VersusModeState.boss_extension, "extensions_ready", function(func, self
     return result
 end)
 
+-- Only living, currently possessed minions ignore involuntary flinching.
+-- Damage/death processing is independent and remains native.
+function VersusModeState.controlled_flinch_immune(unit)
+    local state = VersusModeState.control_for_unit(unit)
+    return state and state.possessed and state.unit == unit and HEALTH_ALIVE[unit]
+        and not (state.blackboard and state.blackboard.death and state.blackboard.death.is_dead)
+        or false
+end
+
+function VersusModeState.clear_controlled_suppression(extension)
+    local component = extension._suppression_component
+    if component then
+        component.suppress_value = 0
+        component.is_suppressed = false
+    end
+    extension._attack_delay = 0
+    if extension._is_suppressed then
+        extension:handle_unit_suppression(false)
+    end
+end
+
+mod:hook(require("scripts/extension_systems/suppression/minion_suppression_extension"), "add_suppress_value", function(func, self, ...)
+    if VersusModeState.controlled_flinch_immune(self._unit) then
+        VersusModeState.clear_controlled_suppression(self)
+        return
+    end
+    return func(self, ...)
+end)
+
+mod:hook(require("scripts/extension_systems/suppression/minion_suppression_extension"), "update", function(func, self, unit, dt, t)
+    if VersusModeState.controlled_flinch_immune(unit) then
+        VersusModeState.clear_controlled_suppression(self)
+    end
+    return func(self, unit, dt, t)
+end)
+
 mod:hook(VersusModeState.stagger, "apply_stagger", function(
     func,
     unit,
@@ -20795,6 +20835,9 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
     hit_shield,
     damage_type
 )
+    if VersusModeState.controlled_flinch_immune(unit) then
+        return false, nil
+    end
     local scale = VersusModeState.controlled_boss_cc_scale(unit)
 
     if scale == nil then
@@ -20859,6 +20902,9 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
 end)
 
 mod:hook(VersusModeState.stagger, "force_stagger", function(func, unit, stagger_type, attack_direction, duration, length_scale, immune_time, attacker_unit, ignore_no_stagger)
+    if VersusModeState.controlled_flinch_immune(unit) then
+        return
+    end
     local scale = VersusModeState.controlled_boss_cc_scale(unit)
 
     if scale == nil then
@@ -22337,6 +22383,45 @@ mod:hook(BtSummonMinionsAction, "leave", function(func, self, unit, breed, black
     end
 
     return func(self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+end)
+
+-- Restrict AI bypasses to an active, possessed Gunner ranged command.
+function VersusModeState.controlled_gunner_shot(unit)
+    local state = VersusModeState.control_for_unit(unit)
+    local attack = state and state.requested_attack
+    return state and state.possessed and state.unit == unit and state.attack_deadline
+        and VersusModeState.gunner_breeds[state.breed.name]
+        and attack and attack.gunner_combat_range == "far" and state or nil
+end
+
+mod:hook(BtShootAction, "enter", function(func, self, unit, breed, blackboard, scratchpad, action_data, t)
+    local result = func(self, unit, breed, blackboard, scratchpad, action_data, t)
+    if VersusModeState.controlled_gunner_shot(unit) and scratchpad.state == "cooldown" then
+        -- Native AI can enter directly into cooldown without ever aiming.
+        self:_start_aiming(unit, t, scratchpad, action_data)
+    end
+    return result
+end)
+
+mod:hook(MinionAttack, "get_attack_delay", function(func, unit)
+    if VersusModeState.controlled_gunner_shot(unit) then
+        return 0
+    end
+    return func(unit)
+end)
+
+mod:hook(MinionAttack, "aim_at_target", function(func, unit, scratchpad, t, action_data, breed)
+    local state = VersusModeState.controlled_gunner_shot(unit)
+    local aim_position = state and camera_aim_ray(state)
+    if aim_position then
+        -- The shot follows the camera even while the body animation turns.
+        -- Returning the native AI's body-angle gate would restart aiming on
+        -- every update and prevent the first projectile from being emitted.
+        scratchpad.current_aim_position:store(aim_position)
+        local _, forward = state_look_direction(state)
+        return true, 1, forward
+    end
+    return func(unit, scratchpad, t, action_data, breed)
 end)
 
 -- Player-controlled gunners do not need the AI's aim/turn anticipation.
