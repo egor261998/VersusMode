@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.5"
+mod.version = "3.0.6"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -452,7 +452,6 @@ local vector3_up = Vector3.up
 
 local DEFAULTS = {
     heretic_night_vision = true,
-    heretic_night_vision_strength = 3,
     selection_range = 50,
     move_speed_percent = 90,
     attack_burst_duration = 2,
@@ -20547,6 +20546,37 @@ function VersusModeState.update_remote_controls()
     end
 end
 
+-- Preysight remains a separate, unmodified dependency. Its own optics, HUD
+-- overlay and audio supply the effect; Versus controls eligibility only.
+function VersusModeState.night_vision_active()
+    return setting("enable_versus_mode") and setting("heretic_night_vision")
+        and VersusModeState.local_infected_view() and true or false
+end
+
+function VersusModeState.install_preysight_bridge()
+    if mod._preysight_bridge_installed then return end
+    local preysight = get_mod("Preysight")
+    if not preysight or not preysight.optics or not preysight.illuminator then return end
+    mod._preysight_bridge_installed = true
+    mod:hook(preysight.optics, "set_target", function(func, target)
+        return func(VersusModeState.night_vision_active() and preysight:is_enabled()
+            and not preysight.user_disabled and 1 or 0)
+    end)
+    mod:hook(preysight.audio, "set_active", function(func, active)
+        return func(VersusModeState.night_vision_active() and preysight:is_enabled()
+            and not preysight.user_disabled and true or false)
+    end)
+    mod:hook(preysight, "update", function(func, dt)
+        preysight.optics.set_target(0) -- eligibility is resolved by the hook above
+        return func(dt)
+    end)
+    -- Preysight normally follows the player's head. Our hidden player shell
+    -- stays elsewhere, so use the possession camera's local light instead.
+    mod:hook(preysight.illuminator, "update", function(func, dt, active, weight)
+        preysight.illuminator.destroy()
+    end)
+end
+
 -- Local fill lighting, not exposure: UI and existing bright light sources keep
 -- their native tone mapping. The light is never spawned through the network.
 function VersusModeState.clear_night_vision()
@@ -20561,11 +20591,15 @@ function VersusModeState.clear_night_vision()
 end
 
 function VersusModeState.update_night_vision()
+    VersusModeState.install_preysight_bridge()
+    local preysight = get_mod("Preysight")
     local worlds = Managers.world
     local world = worlds and worlds:has_world("level_world") and worlds:world("level_world")
     local flight = Managers.free_flight
-    local strength = math_max(0, math_min(5, setting("heretic_night_vision_strength")))
-    if not world or not setting("enable_versus_mode") or not setting("heretic_night_vision")
+    local strength = preysight and preysight.optics and preysight.optics.weight() or 0
+    if not world or not preysight or not preysight:is_enabled() or preysight.user_disabled
+        or preysight:get("preysight_illuminator") == false
+        or not VersusModeState.night_vision_active()
         or not VersusModeState.local_infected_view() or strength == 0
         or not flight or not flight:is_in_free_flight() then
         VersusModeState.clear_night_vision()
@@ -20592,19 +20626,23 @@ function VersusModeState.update_night_vision()
         local source = Unit.light(unit, 1)
         light = {world = world, unit = unit, source = source}
         mod._night_vision_light = light
-        Unit.set_local_scale(unit, 1, Vector3(0.001, 0.001, 0.001))
+        for i = 1, Unit.num_meshes(unit) do Unit.set_mesh_visibility(unit, i, false) end
+        Light.set_type(source, "omni")
         Light.set_spot_reflector(source, false)
         Light.set_casts_shadows(source, false)
         Light.set_volumetric_intensity(source, 0)
-        Light.set_falloff_start(source, 40)
-        Light.set_falloff_end(source, 80)
+        Light.set_falloff_start(source, 0)
+        Light.set_falloff_end(source, preysight:get("preysight_illuminator_range") or 15)
         Light.set_color_filter(source, Vector3(1, 1, 1))
         Light.set_correlated_color_temperature(source, 6500)
         Light.set_enabled(source, true)
     end
+    position = position + Quaternion.forward(rotation) * (preysight:get("preysight_illuminator_offset") or -1.5)
+        + vector3_up() * (preysight:get("preysight_illuminator_height") or 1.5)
     Unit.set_local_position(light.unit, 1, position)
     Unit.set_local_rotation(light.unit, 1, rotation)
-    Light.set_intensity(light.source, strength * 0.5)
+    Light.set_falloff_end(light.source, preysight:get("preysight_illuminator_range") or 15)
+    Light.set_intensity(light.source, strength * (preysight:get("preysight_illuminator_intensity") or 4))
     World.update_unit(world, light.unit)
 end
 

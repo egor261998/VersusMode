@@ -371,14 +371,6 @@ return {
                         tooltip = "heretic_night_vision_tooltip",
                     },
                     {
-                        setting_id = "heretic_night_vision_strength",
-                        type = "numeric",
-                        default_value = 3,
-                        range = { 0, 5 },
-                        decimals_number = 1,
-                        step_size_value = 0.5,
-                    },
-                    {
                         setting_id = "mouse_sensitivity",
                         type = "numeric",
                         default_value = 100,

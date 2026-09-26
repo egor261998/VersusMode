@@ -405,8 +405,8 @@ return {
         ru = "Ночное зрение еретиков",
     },
     heretic_night_vision_tooltip = {
-        en = "Adds local white fill lighting around the Heretic camera without changing exposure. Removed when returning to Operatives.",
-        ru = "Добавляет белую подсветку окружения вокруг камеры еретика без изменения экспозиции. При переходе за оперативников подсветка отключается.",
+        en = "Uses Preysight night vision on the Heretic side. Configure the visual effect in Preysight settings.",
+        ru = "Включает ночное зрение Preysight на стороне еретиков. Вид эффекта настраивается в параметрах Preysight.",
     },
     heretic_night_vision_strength = {
         en = "Night vision fill light",

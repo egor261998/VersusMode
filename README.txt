@@ -1,11 +1,11 @@
-Versus Mode 3.0.5
+Versus Mode 3.0.6
 ==================
 
 Versus Mode lets players join the Heretic Forces and directly control
 Darktide Specialists, Elites, and Bosses. The host remains authoritative
 over spawning, combat, damage, navigation, and team allocation.
 
-This 3.0.5 release adds controllable Scab Gunners, Dreg Gunners, and
+This 3.0.6 release adds controllable Scab Gunners, Dreg Gunners, and
 Reapers to possession and Versus Mode. It uses the permanent VersusMode
 mod identity introduced in 0.1.0.
 
@@ -32,7 +32,7 @@ Requirements
 - Darktide Mod Loader and Darktide Mod Framework.
 - SoloPlay for locally hosted sessions.
 - Realms for LAN sessions with remote human Heretic players.
-- The host and every participating Realms client must run Versus Mode 3.0.5.
+- The host and every participating Realms client must run Versus Mode 3.0.6.
 
 Realms itself is not modified. Versus Mode uses its supported mod-networking
 bridge and remains host-authoritative.
@@ -41,7 +41,7 @@ bridge and remains host-authoritative.
 Installation
 ------------
 
-1. Extract `VersusMode-3.0.5.zip` into the Darktide `mods` directory.
+1. Extract `VersusMode-3.0.6.zip` into the Darktide `mods` directory.
 2. Confirm this exact path exists:
    `mods/VersusMode/VersusMode.mod`
 3. Add `VersusMode` once to `mods/mod_load_order.txt` after DMF-managed
@@ -150,7 +150,7 @@ Recommended compatibility checks
 10. For each Gunner, fire in Target Lock and free aim, strafe both directions
     during a volley, then use its melee actions. Check that shots follow the
     crosshair and commands work in cover.
-11. Repeat Gunner possession with a matching 3.0.5 Realms client and review
+11. Repeat Gunner possession with a matching 3.0.6 Realms client and review
     both host and client logs for selector, animation, or RPC errors.
 12. Change Specialist camera distance, horizontal offset, and height. Compare
     a Specialist and a controlled Elite in third person; both should respond
@@ -180,7 +180,7 @@ Reporting problems
 When reporting an issue, include both host and client console logs when
 available, the map, controlled breed, action being used, whether Target Lock was
 active, and clear reproduction steps. Confirm every machine reports Versus Mode
-3.0.5 before comparing multiplayer behavior.
+3.0.6 before comparing multiplayer behavior.
 
 Local changes: restricted Heretic roster and nearest target
 -----------------------------------------------------------
@@ -246,3 +246,13 @@ closing the picker. Sending a client request alone is not confirmation.
 The existing NEXT REINFORCEMENT HUD uses this same authoritative assignment.
 An unconfirmed request shows an error after five seconds and allows retry.
 All module and asset paths remain relative; no machine-specific paths are used.
+
+Night vision in 3.0.6
+---------------------
+Requires unmodified Preysight 1.1.0 by Wobin; SimpleAssets 2.0.0 enables
+its scanline/grain textures. Load SimpleAssets, Preysight, then VersusMode.
+Sources: https://www.nexusmods.com/warhammer40kdarktide/mods/1235
+https://www.nexusmods.com/warhammer40kdarktide/mods/1008
+Configure the effect in Preysight settings. VersusMode activates it only
+on the Heretic side, regardless of the hidden player's headgear or map lighting.
+Keep both dependency folders when copying this setup to another computer.

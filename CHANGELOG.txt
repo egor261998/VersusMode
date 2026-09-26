@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.6 — Preysight integration (2026-09-27)
+-----------------------------------------
+
+- Use the separate unmodified Preysight mod for optics, colour overlay and audio.
+- Gate activation by Heretic role; adapt its local illuminator to our free-flight camera.
+- Replace the old brightness slider with Preysight's own effect settings.
+- Requires Preysight; SimpleAssets supplies optional grain and scanlines.
+- Integration logic checks passed; in-game rendering remains unverified.
+
 3.0.5 — Client lobby role synchronization (2026-09-27)
 ----------------------------------------------------
 
