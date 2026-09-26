@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.3"
+mod.version = "3.0.4"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -10615,9 +10615,9 @@ local function begin_possession(unit, player, player_unit, controller_peer_id, v
         -- First person is opt-in and never applies to bosses. The live toggle
         -- can change this local presentation without changing target mode.
         first_person = breed.is_boss ~= true and setting("default_first_person_view") == true,
-        casual_combat = Specialist.casual_breed_supported(breed),
-        grenadier_target_lock = (is_specialist_breed(breed) or VersusModeState.controlled_elite_breeds[breed.name])
-            and not (HOUND_BREEDS[breed.name] or MANUAL_AIM_BREEDS[breed.name]),
+        casual_combat = Specialist.casual_breed_supported(breed)
+            and not Specialist.target_mode_supported({ breed = breed }),
+        grenadier_target_lock = false,
         old_controlled_aiming = aim_component and aim_component.controlled_aiming or false,
         controlled_normal_boss = controlled_normal_boss == true,
         controlled_weakened_boss = controlled_weakened_boss == true,
@@ -17343,10 +17343,9 @@ function VersusModeState.begin_client_control(payload)
         animation = safe_extension(unit, "animation_system"),
         blackboard = blackboard,
         breed = breed,
-        casual_combat = Specialist.casual_breed_supported(breed) and payload.casual_combat ~= false,
+        casual_combat = Specialist.casual_breed_supported(breed) and payload.casual_combat == true,
         first_person = breed.is_boss ~= true and setting("default_first_person_view") == true,
-        grenadier_target_lock = (is_specialist_breed(breed) or VersusModeState.controlled_elite_breeds[breed.name])
-            and not (HOUND_BREEDS[breed.name] or MANUAL_AIM_BREEDS[breed.name]),
+        grenadier_target_lock = false,
         versus_role = role,
         network_unit_id = payload.unit_id,
         perception_component = blackboard and blackboard.perception,

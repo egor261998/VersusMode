@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.4 — Free aim on possession (2026-09-27)
+------------------------------------------
+
+- Start host/client possession with target lock disabled.
+- Free-aim-capable casual enemies start in Advanced mode to prevent auto-lock.
+- Keep Q targeting controls available for explicit manual switching.
+
 3.0.3 — Poxburster knockback and shot cooldowns (2026-09-27)
 ----------------------------------------------------------
 
