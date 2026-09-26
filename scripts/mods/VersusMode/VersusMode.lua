@@ -110,19 +110,14 @@ local VersusModeState = {
     respawn_breeds = {
         { name = "renegade_sniper", label = "Scab Sniper" },
         { name = "renegade_netgunner", label = "Scab Trapper" },
-        { name = "renegade_gunner", label = "Scab Gunner" },
-        { name = "cultist_gunner", label = "Dreg Gunner" },
-        { name = "chaos_ogryn_gunner", label = "Reaper" },
-        { name = "renegade_flamer", label = "Scab Flamer" },
-        { name = "cultist_flamer", label = "Dreg Tox Flamer" },
         { name = "renegade_grenadier", label = "Scab Bomber" },
         { name = "cultist_grenadier", label = "Dreg Tox Bomber" },
         { name = "chaos_hound", label = "Pox Hound" },
-        { name = "cultist_mutant", label = "Mutant" },
         { name = "chaos_ogryn_executor", label = "Crusher" },
-        { name = "chaos_ogryn_bulwark", label = "Bulwark" },
         { name = "chaos_poxwalker_bomber", label = "Poxburster" },
     },
+    -- Keep automatic boss assignments outside this restricted reinforcement roster.
+    allow_boss_reinforcements = false,
     controlled_elite_breeds = {
         renegade_gunner = true,
         cultist_gunner = true,
@@ -10725,7 +10720,8 @@ local function begin_possession(unit, player, player_unit, controller_peer_id, v
 end
 
 function VersusModeState.queue_normal_boss(unit, boss_extension)
-    if not setting("enable_versus_mode")
+    if not VersusModeState.allow_boss_reinforcements
+        or not setting("enable_versus_mode")
         or not setting("auto_takeover_normal_bosses")
         or not is_server()
         or not unit
@@ -10800,7 +10796,8 @@ function VersusModeState.auto_boss_release_blocked(state)
 end
 
 function VersusModeState.try_assign_pending_boss()
-    if not setting("enable_versus_mode")
+    if not VersusModeState.allow_boss_reinforcements
+        or not setting("enable_versus_mode")
         or not setting("auto_takeover_normal_bosses")
         or not is_server()
         or VersusModeState.count() == 0 then
@@ -18035,35 +18032,10 @@ local function cycle_control_target(state)
         return
     end
 
-    if not state.locked_target then
-        set_locked_target(state, targets[1])
-        set_status(state, "LOCKED: " .. target_name(targets[1]), 2)
-
-        return
-    end
-
-    local current_index
-
-    for i = 1, #targets do
-        if targets[i] == state.locked_target then
-            current_index = i
-
-            break
-        end
-    end
-
-    if current_index and current_index < #targets then
-        local target = targets[current_index + 1]
-
-        set_locked_target(state, target)
-        set_status(state, "LOCKED: " .. target_name(target), 2)
-    elseif Specialist.target_mode_supported(state) and state.grenadier_target_lock ~= false then
-        set_locked_target(state, targets[1])
-        set_status(state, "LOCKED: " .. target_name(targets[1]), 2)
-    else
-        set_locked_target(state, nil)
-        set_status(state, "AUTO targeting", 2)
-    end
+    -- player_side_targets is freshly sorted by distance from the controlled
+    -- enemy. Do not reuse nearest_attack_target: it preserves an existing lock.
+    set_locked_target(state, targets[1])
+    set_status(state, "LOCKED: " .. target_name(targets[1]), 2)
 end
 
 function Specialist.toggle_target_lock(state)

@@ -110,7 +110,7 @@ return {
         ["zh-tw"] = "長按啟用",
     },
     cycle_target_keybind = {
-        en = "Cycle / unlock target",
+        en = "Select nearest target",
         ["zh-cn"] = "切换／解除锁定目标",
         ["zh-tw"] = "切換／解除鎖定目標",
     },
@@ -1205,12 +1205,12 @@ return {
         ["zh-tw"] = "%.1f 秒",
     },
     hud_cycle_target = {
-        en = "Cycle / Unlock Target",
+        en = "Select Nearest Target",
         ["zh-cn"] = "切换／解除锁定目标",
         ["zh-tw"] = "切換／解除鎖定目標",
     },
     hud_cycle_target_lock_only = {
-        en = "Cycle Target — LOCK MODE ONLY",
+        en = "Nearest Target — LOCK MODE ONLY",
         ["zh-cn"] = "切换目标 — 仅限锁定模式",
         ["zh-tw"] = "切換目標 — 僅限鎖定模式",
     },
@@ -2160,7 +2160,7 @@ return {
         ["zh-tw"] = "手動瞄準敵人使用準星",
     },
     hud_enable_lock_before_cycle = {
-        en = "Enable target lock before cycling targets",
+        en = "Enable target lock before selecting the nearest target",
         ["zh-cn"] = "切换目标前请先启用目标锁定",
         ["zh-tw"] = "切換目標前請先啟用目標鎖定",
     },

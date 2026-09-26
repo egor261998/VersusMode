@@ -181,3 +181,22 @@ When reporting an issue, include both host and client console logs when
 available, the map, controlled breed, action being used, whether Target Lock was
 active, and clear reproduction steps. Confirm every machine reports Versus Mode
 0.1.2 before comparing multiplayer behavior.
+
+Local changes: restricted Heretic roster and nearest target
+-----------------------------------------------------------
+The Cycle / Unlock Target binding now selects the nearest valid target on
+every press instead of cycling or clearing the lock. The host also applies
+this behavior to remote clients. Existing manual-aim, free-aim, hound,
+menu and attack-in-progress restrictions remain in effect.
+
+Random and manually cycled reinforcements are limited to Scab Sniper,
+Scab Trapper, Scab Bomber, Dreg Tox Bomber, Pox Hound, Crusher and Poxburster.
+The optional Sniper Netter variant is still a Trapper and remains available
+when specialist variants are enabled. Automatic boss takeover is disabled
+for this restricted roster, including when its old saved setting is enabled.
+Ordinary AI enemies in missions are unaffected.
+
+Restart Darktide to load these changes. Install this modified version on the
+Realms host for authoritative selection; use the same copy on clients for
+matching descriptions. Nearest-target distance is measured from the enemy
+you control, not from the spectator camera.
