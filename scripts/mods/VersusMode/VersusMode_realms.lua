@@ -43,8 +43,8 @@ end
 local function is_connection_host()
     local current = connection()
 
-    if current and current:is_host() then
-        return true
+    if current and (current:is_host() or current:is_client()) then
+        return current:is_host()
     end
 
     return preparation_role() == "host"
@@ -53,8 +53,8 @@ end
 local function is_connection_client()
     local current = connection()
 
-    if current and current:is_client() then
-        return true
+    if current and (current:is_host() or current:is_client()) then
+        return current:is_client()
     end
 
     return preparation_role() == "client"
@@ -297,7 +297,9 @@ function RealmsBridge.update(enabled)
         end
     end
 
-    if not phase_key or not is_connection_client() or hello_acknowledged or not available then
+    -- Refresh lobby plans even after the initial empty roster was acknowledged.
+    local preparation_open = Managers.ui and Managers.ui:view_instance("realms_preparation_view") ~= nil
+    if not phase_key or not is_connection_client() or (hello_acknowledged and not preparation_open) or not available then
         return
     end
 

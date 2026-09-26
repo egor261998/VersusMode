@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.5 — Client lobby role synchronization (2026-09-27)
+----------------------------------------------------
+
+- Refresh client role labels immediately when a lobby plan arrives.
+- Request fresh plans every two seconds while the preparation view is open.
+- Prefer the active connection role over stale preparation state.
+- Isolated label transitions passed; multiplayer validation remains pending.
+
 3.0.4 — Free aim on possession (2026-09-27)
 ------------------------------------------
 

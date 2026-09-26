@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.4"
+mod.version = "3.0.5"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -18687,6 +18687,8 @@ function VersusModeState.apply_replicated_lobby_plan(payload)
         revision = type(payload.revision) == "number" and payload.revision or 0,
         selected = selected,
     }
+
+    VersusModeState.repair_active_realms_preparation_view()
 
     return true
 end
