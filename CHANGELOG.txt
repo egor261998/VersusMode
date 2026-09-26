@@ -1,0 +1,61 @@
+Versus Mode changelog
+=====================
+
+0.1.2 — Stable
+--------------
+
+- Added Scab Gunner, Dreg Gunner, and Reaper to the possession allowlist and
+  Versus Mode reinforcement selection.
+- Mapped native gunfire and melee actions, including Dreg bayonet and Reaper
+  push, with camera-directed shooting and command selection while in cover.
+- Added HUD action labels in English, Simplified Chinese, and Traditional
+  Chinese.
+- Controlled Elites now use the Specialist third-person distance, horizontal
+  offset, height adjustment, and starting pitch.
+- Gunner auto lock now loses survivors inside smoke beyond 4 metres unless the
+  Gunner is in the same smoke cloud. Free aim remains available.
+- Possessed Gunners can strafe during ranged volleys using native directional
+  speeds scaled by the Movement speed setting. Aim and rotation handling follow
+  the native strafe-shoot path, including the Reaper's left strafe.
+- Casual firearm commands now complete only when the native final shot fires.
+- Requires the host and participating Realms clients to use the same 0.1.2
+  build. Lua 5.1 validation passed (9 compiled files; 1,387 isolated
+  assertions). The user tested the final build in game and reports it looks
+  good. Realms client validation remains pending.
+
+0.1.0 — Public Testing
+----------------------
+
+- Established the permanent VersusMode internal identity and package layout.
+- Added host-controlled Operative and Heretic team assignment for SoloPlay and
+  compatible Realms sessions.
+- Added supported Specialist, Elite, Boss, and variant possession.
+- Added Adaptive Combat, Direct Combat, target lock, free aim, reinforcement,
+  deployment, camera, spectating, health-rule, and experimental traversal tools.
+- Added English, Simplified Chinese, and Traditional Chinese UI text.
+- Added persistent white Operative outlines, red locked-target outline/brackets,
+  and green allied-Heretic outlines.
+- Stabilized Realms-client animation delivery with transition-only locomotion
+  synchronization and an exact-event fallback for missed native animation RPCs.
+- Restored Pox Hound steering after pounce completion, cancellation, and failure.
+- Guarded possession HUD cleanup against destroyed RemotePlayer entries.
+- Kept remote Heretic breed assignment private from Versus Mode's host notices.
+- Added a local Show attack log option, disabled by default, while preserving
+  reinforcement, assignment, death, and error notices.
+- Initialized Deployment View immediately from the active streaming anchor when
+  a Heretic team assignment is applied as gameplay begins.
+- Recreated an early lobby-assignment Deployment View at possession time so the
+  rendered camera cannot remain attached to the hidden Operative shell.
+- Prevented an invalid replicated camera node from crashing an Operative client
+  during death, observer, or mission-outro camera transitions.
+- Protected automatic Boss takeover from a carried-over Possess-key release
+  that could relinquish the newly assigned Boss in the same update.
+- Recreated Versus Mode's native Deployment View manager between missions so
+  Specialist respawns cannot reuse a destroyed previous-level viewport.
+- Started a fresh editable Heretic roster plan on every Realms preparation
+  lobby entry, including consecutive missions in the same session.
+- Allowed a Daemonhost's native warp-grab execution sequence to finish a
+  downed Operative when initiated through Adaptive Strike.
+
+This public release contains the fixes validated through the temporary
+Versus Mode (Test) 0.1.12 series. It is not network-compatible with that series.
