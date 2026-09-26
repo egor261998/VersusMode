@@ -22437,7 +22437,7 @@ end)
 
 -- Player-controlled gunners do not need the AI's aim/turn anticipation.
 -- Enter shooting through the native action so weapon setup and burst cadence
--- remain intact. The short-lived copy avoids changing ordinary AI templates.
+-- remain intact. Advance only the shot deadline, never effect-template settings.
 mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchpad, action_data, breed)
     local state = VersusModeState.control_for_unit(unit)
     local attack = state and state.requested_attack
@@ -22456,9 +22456,10 @@ mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchp
     end
     local MinionPerception = require("scripts/utilities/minion_perception")
     MinionPerception.set_target_lock(unit, scratchpad.perception_component, false)
-    local immediate_action = table.clone(action_data)
-    immediate_action.before_shoot_effect_template_timing = 0
-    self:_start_shooting(unit, t, scratchpad, immediate_action)
+    self:_start_shooting(unit, t, scratchpad, action_data)
+    -- A zero effect timer is truthy in Lua and schedules an effect even when
+    -- this weapon has no effect template. Keep native effect configuration.
+    scratchpad.next_shoot_timing = t
     state.attack_phase = "FIRING"
 end)
 
