@@ -12,8 +12,7 @@ return {
     load_after = {
         "dmf",
         "Realms",
-        "Preysight",
     },
-    version = "3.0.6",
+    version = "3.0.7",
     mod_id = "VersusMode",
 }

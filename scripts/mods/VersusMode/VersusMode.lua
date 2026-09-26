@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.6"
+mod.version = "3.0.7"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -20546,40 +20546,16 @@ function VersusModeState.update_remote_controls()
     end
 end
 
--- Preysight remains a separate, unmodified dependency. Its own optics, HUD
--- overlay and audio supply the effect; Versus controls eligibility only.
+-- Built-in night vision is restricted to the local Heretic role.
 function VersusModeState.night_vision_active()
     return setting("enable_versus_mode") and setting("heretic_night_vision")
         and VersusModeState.local_infected_view() and true or false
 end
 
-function VersusModeState.install_preysight_bridge()
-    if mod._preysight_bridge_installed then return end
-    local preysight = get_mod("Preysight")
-    if not preysight or not preysight.optics or not preysight.illuminator then return end
-    mod._preysight_bridge_installed = true
-    mod:hook(preysight.optics, "set_target", function(func, target)
-        return func(VersusModeState.night_vision_active() and preysight:is_enabled()
-            and not preysight.user_disabled and 1 or 0)
-    end)
-    mod:hook(preysight.audio, "set_active", function(func, active)
-        return func(VersusModeState.night_vision_active() and preysight:is_enabled()
-            and not preysight.user_disabled and true or false)
-    end)
-    mod:hook(preysight, "update", function(func, dt)
-        preysight.optics.set_target(0) -- eligibility is resolved by the hook above
-        return func(dt)
-    end)
-    -- Preysight normally follows the player's head. Our hidden player shell
-    -- stays elsewhere, so use the possession camera's local light instead.
-    mod:hook(preysight.illuminator, "update", function(func, dt, active, weight)
-        preysight.illuminator.destroy()
-    end)
-end
-
 -- Local fill lighting, not exposure: UI and existing bright light sources keep
 -- their native tone mapping. The light is never spawned through the network.
 function VersusModeState.clear_night_vision()
+    if mod._night_vision then mod._night_vision.optics.reset() end
     local light = mod._night_vision_light
     mod._night_vision_light = nil
     if not light then return end
@@ -20590,15 +20566,15 @@ function VersusModeState.clear_night_vision()
     end
 end
 
-function VersusModeState.update_night_vision()
-    VersusModeState.install_preysight_bridge()
-    local preysight = get_mod("Preysight")
+function VersusModeState.update_night_vision(dt)
+    local vision = mod._night_vision
+    vision.optics.set_target(VersusModeState.night_vision_active() and 1 or 0)
+    vision.optics.update(dt or 0)
     local worlds = Managers.world
     local world = worlds and worlds:has_world("level_world") and worlds:world("level_world")
     local flight = Managers.free_flight
-    local strength = preysight and preysight.optics and preysight.optics.weight() or 0
-    if not world or not preysight or not preysight:is_enabled() or preysight.user_disabled
-        or preysight:get("preysight_illuminator") == false
+    local strength = vision.optics.weight()
+    if not world
         or not VersusModeState.night_vision_active()
         or not VersusModeState.local_infected_view() or strength == 0
         or not flight or not flight:is_in_free_flight() then
@@ -20632,22 +20608,22 @@ function VersusModeState.update_night_vision()
         Light.set_casts_shadows(source, false)
         Light.set_volumetric_intensity(source, 0)
         Light.set_falloff_start(source, 0)
-        Light.set_falloff_end(source, preysight:get("preysight_illuminator_range") or 15)
+        Light.set_falloff_end(source, 15)
         Light.set_color_filter(source, Vector3(1, 1, 1))
         Light.set_correlated_color_temperature(source, 6500)
         Light.set_enabled(source, true)
     end
-    position = position + Quaternion.forward(rotation) * (preysight:get("preysight_illuminator_offset") or -1.5)
-        + vector3_up() * (preysight:get("preysight_illuminator_height") or 1.5)
+    position = position + Quaternion.forward(rotation) * (-1.5)
+        + vector3_up() * (1.5)
     Unit.set_local_position(light.unit, 1, position)
     Unit.set_local_rotation(light.unit, 1, rotation)
-    Light.set_falloff_end(light.source, preysight:get("preysight_illuminator_range") or 15)
-    Light.set_intensity(light.source, strength * (preysight:get("preysight_illuminator_intensity") or 4))
+    Light.set_falloff_end(light.source, 15)
+    Light.set_intensity(light.source, strength * (4))
     World.update_unit(world, light.unit)
 end
 
 mod.update = function(dt)
-    VersusModeState.update_night_vision()
+    VersusModeState.update_night_vision(dt)
     if mod._realms_compat then
         mod._realms_compat.update(setting("enable_versus_mode"))
     end
@@ -26165,4 +26141,14 @@ mod:register_hud_element({
     visibility_groups = {
         "alive",
     },
+})
+
+mod._night_vision = {}
+mod._night_vision.ramp = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_ramp")
+mod._night_vision.optics = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_optics")
+mod._night_vision.optics.install(mod)
+mod:register_hud_element({
+    class_name = "HudElementVersusNightVision",
+    filename = "VersusMode/scripts/mods/VersusMode/VersusMode_night_hud",
+    visibility_groups = { "alive", "dead", "communication_wheel", "player_in_danger_zone" },
 })

@@ -405,8 +405,8 @@ return {
         ru = "Ночное зрение еретиков",
     },
     heretic_night_vision_tooltip = {
-        en = "Uses Preysight night vision on the Heretic side. Configure the visual effect in Preysight settings.",
-        ru = "Включает ночное зрение Preysight на стороне еретиков. Вид эффекта настраивается в параметрах Preysight.",
+        en = "Built-in green night vision for the Heretic side. No additional mods required.",
+        ru = "Встроенное зелёное ночное зрение только для еретиков. Дополнительные моды не нужны.",
     },
     heretic_night_vision_strength = {
         en = "Night vision fill light",

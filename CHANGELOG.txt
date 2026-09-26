@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.7 — Standalone Heretic night vision (2026-09-27)
+--------------------------------------------------
+
+- Embedded the adapted Preysight optics and fade code, with author attribution.
+- Added native green overlay, vignette, procedural scanlines and grain.
+- Removed the separate Preysight/SimpleAssets dependencies and cross-mod hooks.
+- Reset vision on role changes, disable, unload and game-state exits.
+- Standalone optics and Lua checks passed; in-game visuals remain unverified.
+
 3.0.6 — Preysight integration (2026-09-27)
 -----------------------------------------
 
