@@ -16545,7 +16545,12 @@ function VersusModeState.try_respawn(role, automatic)
     end
 
     pcall(minion_spawn_manager.despawn_minion, minion_spawn_manager, spawned_unit)
-    VersusModeState.schedule_respawn(role)
+    -- A failed possession is a retry of this choice, not a new random life.
+    role.respawn_breed = breed_name
+    role.respawn_variant = variant_id
+    role.respawn_ready_at = gameplay_time()
+    role.assigned_boss_unit = nil
+    VersusModeState.publish_roster()
 
     if automatic then
         VersusModeState.automatic_respawn_failure(role, mod:localize("hud_specialist_spawn_failed"))
@@ -16872,7 +16877,12 @@ function VersusModeState.try_remote_respawn(peer_id, payload, automatic)
     end
 
     pcall(minion_spawn_manager.despawn_minion, minion_spawn_manager, spawned_unit)
-    VersusModeState.schedule_respawn(role)
+    -- A failed possession is a retry of this choice, not a new random life.
+    role.respawn_breed = breed_name
+    role.respawn_variant = variant_id
+    role.respawn_ready_at = gameplay_time()
+    role.assigned_boss_unit = nil
+    VersusModeState.publish_roster()
 
     if automatic then
         VersusModeState.automatic_respawn_failure(role, "The selected infected could not be controlled", peer_id)

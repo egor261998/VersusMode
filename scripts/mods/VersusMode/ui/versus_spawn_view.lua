@@ -13,6 +13,7 @@ VersusModeSpawnView.on_enter = function(self)
     self._selected = #self._choices > 0 and math.random(#self._choices) or nil
     self._heartbeat_at = 0
     self._hovered = nil
+    self._selection_submitted = false
     local widgets = self._widgets_by_name
     widgets.title.content.text = mod:localize("spawn_picker_title")
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
@@ -25,22 +26,24 @@ VersusModeSpawnView.on_enter = function(self)
         widget.content.hotspot.disabled = entry == nil
         widget.content.text = entry and entry.label or ""
         widget.content.portrait = entry and entry.portrait or widget.content.portrait
-        widget.content.hotspot.pressed_callback = callback(self, "cb_choose", i)
+        -- Capture this card's identity, never the changing hover selection.
+        local card_choice = entry
+        widget.content.hotspot.pressed_callback = function()
+            self:cb_choose_entry(card_choice)
+        end
     end
     mod.spawn_picker_hold(true)
 end
 
-VersusModeSpawnView.cb_choose = function(self, index)
-    if self._choices[index] then
-        self._selected = index
-        self:cb_confirm()
+VersusModeSpawnView.cb_choose_entry = function(self, entry)
+    if not entry or self._selection_submitted then
+        return
     end
-end
-
-VersusModeSpawnView.cb_confirm = function(self)
-    if mod.spawn_picker_select(self._choices[self._selected]) then
+    self._selection_submitted = true
+    if mod.spawn_picker_select(entry) then
         self:cb_close()
     else
+        self._selection_submitted = false
         self._widgets_by_name.hint.content.text = mod:localize("spawn_picker_failed")
     end
 end
