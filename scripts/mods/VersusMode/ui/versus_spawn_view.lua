@@ -21,7 +21,7 @@ VersusModeSpawnView.on_enter = function(self)
     widgets.confirm.content.hotspot.pressed_callback = callback(self, "cb_confirm")
     widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_close")
     widgets.confirm.content.hotspot.disabled = self._selected == nil
-    for i = 1, 8 do
+    for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]
         local entry = self._choices[i]
         widget.content.visible = entry ~= nil

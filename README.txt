@@ -212,3 +212,11 @@ Cards use the mod's existing enemy portraits, or its neutral skull emblem
 with the breed name where this mod has no portrait mapping.
 Install this same modified copy on both host and clients for direct selection.
 The host validates each requested breed and variant against its allowed list.
+
+Local changes: Gunner and Reaper crosshair aiming
+------------------------------------------------
+Scab Gunner, Dreg Gunner and Reaper are available for random respawns and
+manual selection again. All three always use the camera crosshair, like
+the Trapper, in first and third person. Target lock is disabled for them;
+their native weapon, spread, volley timing and melee attacks are retained.
+The picker now has room for all ten breeds plus the optional Trapper variant.

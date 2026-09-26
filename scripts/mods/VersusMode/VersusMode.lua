@@ -108,6 +108,9 @@ local VersusModeState = {
     stagger = require("scripts/utilities/attack/stagger"),
     network_constants = nil,
     respawn_breeds = {
+        { name = "renegade_gunner", label = "Scab Gunner" },
+        { name = "cultist_gunner", label = "Dreg Gunner" },
+        { name = "chaos_ogryn_gunner", label = "Reaper" },
         { name = "renegade_sniper", label = "Scab Sniper" },
         { name = "renegade_netgunner", label = "Scab Trapper" },
         { name = "renegade_grenadier", label = "Scab Bomber" },
@@ -548,7 +551,12 @@ local MUTANT_BREEDS = {
     cultist_mutant_mutator = true,
 }
 local POXBURSTER_BREED_NAME = "chaos_poxwalker_bomber"
+-- Gunners share the always-on crosshair mode with the Trapper. Their native
+-- camera-directed volleys use MinionAttack.get_aim_position below.
 local MANUAL_AIM_BREEDS = {
+    renegade_gunner = true,
+    cultist_gunner = true,
+    chaos_ogryn_gunner = true,
     renegade_sniper = true,
     renegade_netgunner = true,
 }
