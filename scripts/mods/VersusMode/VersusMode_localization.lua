@@ -1,4 +1,6 @@
 return {
+    spawn_picker_cooldown = { en = "Cooldown: %d s", ru = "КД: %d с" },
+    spawn_picker_ready = { en = "Ready", ru = "Доступен" },
     spawn_picker_pending = { en = "Applying selection: %s...", ru = "Применяется выбор: %s..." },
     spawn_picker_unconfirmed = { en = "Selection not confirmed. Retry; host and client need the same mod version.", ru = "Выбор не подтверждён. Попробуй снова; у хоста и клиента должна быть одинаковая версия мода." },
     spawn_picker_title = { en = "Choose your Heretic", ru = "Выбери еретика" },

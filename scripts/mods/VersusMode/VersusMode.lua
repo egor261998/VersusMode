@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.7"
+mod.version = "3.0.8"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -3328,6 +3328,39 @@ function VersusModeState.available_spawn_choices()
     return choices
 end
 
+function VersusModeState.breed_cooldown(role, breed_name)
+    local until_t = role and role.breed_cooldowns and role.breed_cooldowns[breed_name]
+    return math_max(0, (until_t or 0) - gameplay_time())
+end
+
+function VersusModeState.breed_cooldown_payload(role)
+    local remaining = {}
+    for name in pairs(role.breed_cooldowns or {}) do
+        local seconds = VersusModeState.breed_cooldown(role, name)
+        if seconds > 0 then remaining[name] = seconds end
+    end
+    return remaining
+end
+
+function VersusModeState.record_breed_death(role, state)
+    if is_server() and role and role.infected_human and state.breed then
+        role.breed_cooldowns = role.breed_cooldowns or {}
+        role.breed_cooldowns[state.breed.name] = gameplay_time() + 60
+    end
+end
+
+function VersusModeState.apply_breed_cooldowns(role, remaining)
+    role.breed_cooldowns = {}
+    if type(remaining) == "table" then
+        for name, seconds in pairs(remaining) do
+            if type(name) == "string" and type(seconds) == "number"
+                and seconds > 0 and seconds <= 60 then
+                role.breed_cooldowns[name] = gameplay_time() + seconds
+            end
+        end
+    end
+end
+
 function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, variant_id)
     if not is_server()
         or not VersusModeState.spawn_selection_enabled()
@@ -3356,7 +3389,14 @@ function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, var
         end
     end
 
-    local selected = choices[current_index % #choices + 1]
+    local selected
+    for offset = 1, #choices do
+        local candidate = choices[(current_index + offset - 1) % #choices + 1]
+        if VersusModeState.breed_cooldown(role, candidate.name) == 0 then
+            selected = candidate
+            break
+        end
+    end
 
     if breed_name ~= nil then
         selected = nil
@@ -3369,6 +3409,10 @@ function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, var
         if not selected then
             return false
         end
+    end
+
+    if not selected or VersusModeState.breed_cooldown(role, selected.name) > 0 then
+        return false
     end
 
     role.respawn_breed = selected.name
@@ -4179,6 +4223,7 @@ function VersusModeState.roster_payload()
             peer_id = role.infected_peer_id,
             respawn_breed = role.respawn_breed,
             respawn_variant = role.respawn_variant,
+            breed_cooldowns = VersusModeState.breed_cooldown_payload(role),
             respawn_remaining = role.respawn_ready_at and math_max(0, role.respawn_ready_at - gameplay_time()) or nil,
             unique_id = tostring(role.infected_unique_id),
         }
@@ -4294,6 +4339,8 @@ function VersusModeState.apply_replicated_roster(payload)
         end
 
         role.replicated_token = token
+
+        VersusModeState.apply_breed_cooldowns(role, entry.breed_cooldowns)
 
         role.controlled_unit_id = type(entry.controlled_unit_id) == "number"
             and entry.controlled_unit_id
@@ -7644,18 +7691,8 @@ function VersusModeState.schedule_respawn(role)
     for i = 1, #VersusModeState.respawn_breeds do
         local entry = VersusModeState.respawn_breeds[i]
 
-        if VersusModeState.breeds[entry.name] and entry.name ~= role.last_respawn_breed then
+        if VersusModeState.breeds[entry.name] then
             choices[#choices + 1] = entry
-        end
-    end
-
-    if #choices == 0 then
-        for i = 1, #VersusModeState.respawn_breeds do
-            local entry = VersusModeState.respawn_breeds[i]
-
-            if VersusModeState.breeds[entry.name] then
-                choices[#choices + 1] = entry
-            end
         end
     end
 
@@ -7663,7 +7700,27 @@ function VersusModeState.schedule_respawn(role)
         return false
     end
 
-    local selected = choices[math.random(1, #choices)]
+    local available = {}
+    for i = 1, #choices do
+        if VersusModeState.breed_cooldown(role, choices[i].name) == 0 then
+            available[#available + 1] = choices[i]
+        end
+    end
+    local selected
+    if #available > 0 then
+        if #available > 1 then
+            for i = #available, 1, -1 do
+                if available[i].name == role.last_respawn_breed then table.remove(available, i) end
+            end
+        end
+        selected = available[math.random(1, #available)]
+    else
+        -- All breeds are cooling down: queue the first one that becomes ready.
+        table.sort(choices, function(a, b)
+            return VersusModeState.breed_cooldown(role, a.name) < VersusModeState.breed_cooldown(role, b.name)
+        end)
+        selected = choices[1]
+    end
     local delay = math_max(0, setting("infected_respawn_delay"))
 
     role.respawn_breed = selected.name
@@ -10350,6 +10407,10 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
     local is_local_control = mod._control == state
     local controller_peer_id = state.controller_peer_id
     local versus_role = state.versus_role or is_local_control and mod._versus_role_test
+
+    if controlled_unit_dead then
+        VersusModeState.record_breed_death(versus_role, state)
+    end
 
     if is_local_control then
         VersusModeState.restore_sniper_scope(state)
@@ -16490,7 +16551,8 @@ function VersusModeState.try_respawn(role, automatic)
         return false
     end
 
-    local remaining = (role.respawn_ready_at or math.huge) - gameplay_time()
+    local remaining = math_max((role.respawn_ready_at or math.huge) - gameplay_time(),
+        VersusModeState.breed_cooldown(role, role.respawn_breed))
 
     if remaining > 0 then
         VersusModeState.echo_localized(
@@ -16810,7 +16872,8 @@ function VersusModeState.try_remote_respawn(peer_id, payload, automatic)
         VersusModeState.schedule_respawn(role)
     end
 
-    local remaining = (role.respawn_ready_at or math.huge) - t
+    local remaining = math_max((role.respawn_ready_at or math.huge) - t,
+        VersusModeState.breed_cooldown(role, role.respawn_breed))
 
     if remaining > 0 then
         if not automatic then
@@ -17215,6 +17278,7 @@ function VersusModeState.update_automatic_respawns()
 
     for _, role in pairs(VersusModeState.roles()) do
         local ready = role.respawn_breed
+            and VersusModeState.breed_cooldown(role, role.respawn_breed) == 0
             and t >= (role.respawn_ready_at or math.huge)
             and t >= (role.automatic_respawn_not_before or 0)
             and t >= (role.automatic_respawn_retry_at or 0)
@@ -19465,6 +19529,10 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
     Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
 end
 
+mod.spawn_picker_cooldown = function(entry)
+    return VersusModeState.breed_cooldown(VersusModeState.local_role(), entry.name)
+end
+
 mod.spawn_picker_choices = function()
     local choices = VersusModeState.available_spawn_choices()
     local result = {}
@@ -19509,7 +19577,7 @@ mod.spawn_picker_matches = function(entry)
 end
 
 mod.spawn_picker_select = function(entry)
-    if not entry or not mod.spawn_picker_available() then
+    if not entry or not mod.spawn_picker_available() or mod.spawn_picker_cooldown(entry) > 0 then
         return false
     end
     if is_server() then
@@ -19555,7 +19623,8 @@ function VersusModeState.hud_data()
     if role and VersusModeState.local_active() then
         local breed_name = role.respawn_breed
         local breed_label = VersusModeState.respawn_label(breed_name, role.respawn_variant)
-        local remaining = breed_name and math_max(0, (role.respawn_ready_at or math.huge) - gameplay_time()) or math.huge
+        local remaining = breed_name and math_max(VersusModeState.breed_cooldown(role, breed_name),
+            (role.respawn_ready_at or math.huge) - gameplay_time()) or math.huge
         local ready = breed_name and remaining <= 0
         local random_safe = VersusModeState.random_safe_spawn_enabled()
         local automatic = random_safe and VersusModeState.automatic_respawn_enabled()

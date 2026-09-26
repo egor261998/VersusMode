@@ -10,7 +10,11 @@ end
 VersusModeSpawnView.on_enter = function(self)
     VersusModeSpawnView.super.on_enter(self)
     self._choices = mod.spawn_picker_choices()
-    self._selected = #self._choices > 0 and math.random(#self._choices) or nil
+    local available = {}
+    for i, entry in ipairs(self._choices) do
+        if mod.spawn_picker_cooldown(entry) == 0 then available[#available + 1] = i end
+    end
+    self._selected = #available > 0 and available[math.random(#available)] or nil
     self._heartbeat_at = 0
     self._hovered = nil
     self._selection_submitted = false
@@ -25,7 +29,7 @@ VersusModeSpawnView.on_enter = function(self)
         local widget = widgets["enemy_" .. i]
         local entry = self._choices[i]
         widget.content.visible = entry ~= nil
-        widget.content.hotspot.disabled = entry == nil
+        widget.content.hotspot.disabled = entry == nil or mod.spawn_picker_cooldown(entry) > 0
         widget.content.text = entry and entry.label or ""
         widget.content.portrait = entry and entry.portrait or widget.content.portrait
         -- Capture this card's identity, never the changing hover selection.
@@ -38,7 +42,7 @@ VersusModeSpawnView.on_enter = function(self)
 end
 
 VersusModeSpawnView.cb_choose_entry = function(self, entry)
-    if not entry or self._selection_submitted then
+    if not entry or self._selection_submitted or mod.spawn_picker_cooldown(entry) > 0 then
         return
     end
     self._selection_submitted = true
@@ -90,7 +94,8 @@ VersusModeSpawnView.update = function(self, dt, t, input_service)
     end
     local hovered
     for i = 1, #self._choices do
-        if self._widgets_by_name["enemy_" .. i].content.hotspot.is_hover then
+        if self._widgets_by_name["enemy_" .. i].content.hotspot.is_hover
+            and mod.spawn_picker_cooldown(self._choices[i]) == 0 then
             hovered = i
         end
     end
@@ -102,8 +107,15 @@ VersusModeSpawnView.update = function(self, dt, t, input_service)
     self._hovered = hovered
     for i = 1, #self._choices do
         local widget = self._widgets_by_name["enemy_" .. i]
+        local remaining = mod.spawn_picker_cooldown(self._choices[i])
+        local blocked = remaining > 0
+        widget.content.hotspot.disabled = blocked or self._selection_submitted
+        widget.content.cooldown = blocked and mod:localize("spawn_picker_cooldown", math.ceil(remaining))
+            or mod:localize("spawn_picker_ready")
+        widget.style.cooldown.text_color = blocked and { 255, 255, 130, 100 } or { 255, 155, 235, 115 }
         local selected = i == self._selected
-        widget.style.background.color = selected and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
+        widget.style.background.color = blocked and { 230, 55, 30, 30 }
+            or selected and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
         widget.style.frame.color = selected and { 255, 155, 235, 115 } or { 255, 83, 105, 87 }
     end
     return pass_input, pass_draw

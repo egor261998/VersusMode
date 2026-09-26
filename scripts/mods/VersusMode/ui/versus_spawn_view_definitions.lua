@@ -36,8 +36,11 @@ for i = 1, MAX_CARDS do
     local name = "enemy_" .. i
     node(name, 30 + (i - 1) % COLUMNS * 250, 125 + math.floor((i - 1) / COLUMNS) * 205, 230, 185)
     local label_style = font(20)
-    label_style.size = { 220, 55 }
-    label_style.offset = { 5, 125, 3 }
+    label_style.size = { 220, 50 }
+    label_style.offset = { 5, 110, 3 }
+    local cooldown_style = font(18)
+    cooldown_style.size = { 220, 25 }
+    cooldown_style.offset = { 5, 158, 3 }
     widgets[name] = UIWidget.create_definition({
         { pass_type = "hotspot", content_id = "hotspot", visibility_function = visible },
         { pass_type = "rect", style_id = "background", style = { color = { 230, 31, 43, 40 } }, visibility_function = visible },
@@ -46,6 +49,7 @@ for i = 1, MAX_CARDS do
         { pass_type = "texture", value_id = "portrait", value = "content/ui/materials/dividers/skull_rendered_center_01",
             style = { size = { 110, 110 }, offset = { 60, 10, 2 }, color = { 255, 255, 255, 255 } }, visibility_function = visible },
         { pass_type = "text", value_id = "text", value = "", style = label_style, visibility_function = visible },
+        { pass_type = "text", value_id = "cooldown", style_id = "cooldown", value = "", style = cooldown_style, visibility_function = visible },
     }, name, { visible = false })
 end
 for _, name in ipairs({ "cancel" }) do

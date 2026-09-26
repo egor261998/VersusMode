@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.8 — Per-player Heretic respawn cooldowns (2026-09-27)
+----------------------------------------------------------
+
+- Death locks that breed for the controlling player for 60 seconds.
+- Picker cards show live cooldowns and disable unavailable choices.
+- Host validates selection and spawning; remaining times replicate to clients.
+- Automatic reinforcement picks an available breed, or waits for the earliest cooldown.
+
 3.0.7 — Standalone Heretic night vision (2026-09-27)
 --------------------------------------------------
 
