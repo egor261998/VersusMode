@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.9"
+mod.version = "3.0.10"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -4537,6 +4537,8 @@ function VersusModeState.clear_role(role, reason)
 end
 
 function VersusModeState.clear(reason)
+    mod._team_hud_snapshot = nil
+    mod._team_hud_send_delay = nil
     local roles = VersusModeState.roles()
     local pending = {}
 
@@ -20755,7 +20757,82 @@ function VersusModeState.update_night_vision(dt)
     World.update_unit(world, light.unit)
 end
 
+function VersusModeState.team_hud_snapshot()
+    local rows = {}
+    for _, role in pairs(VersusModeState.roles()) do
+        if role.infected_human then
+            local state = VersusModeState.control_for_role(role)
+            local unit = state and state.possessed and state.unit
+            local alive = unit and ALIVE[unit] and HEALTH_ALIVE[unit] or false
+            local health = alive and safe_extension(unit, "health_system")
+            local current_ok, current = safe_extension_call(health, "current_health")
+            local max_ok, maximum = safe_extension_call(health, "max_health")
+            rows[#rows + 1] = {
+                id = tostring(role.infected_unique_id), name = tostring(role.infected_name or ""),
+                breed = alive and state.breed.name or role.respawn_breed,
+                variant = alive and state.variant_id or role.respawn_variant,
+                alive = alive == true,
+                health = current_ok and type(current) == "number" and math_max(0, current) or nil,
+                maximum = max_ok and type(maximum) == "number" and maximum > 0 and maximum or nil,
+                remaining = math_max(0, (role.respawn_ready_at or gameplay_time()) - gameplay_time(),
+                    VersusModeState.breed_cooldown(role, role.respawn_breed)),
+            }
+        end
+    end
+    table.sort(rows, function(a, b) return a.id < b.id end)
+    return { rows = rows }
+end
+
+function VersusModeState.receive_team_hud(payload)
+    if is_server() or type(payload.rows) ~= "table" then return end
+    local rows = {}
+    for _, entry in ipairs(payload.rows) do
+        if type(entry) == "table" and type(entry.id) == "string" and type(entry.name) == "string" then
+            local function finite(value)
+                return type(value) == "number" and value == value and value >= 0 and value < math.huge
+            end
+            rows[#rows + 1] = {
+                id = entry.id, name = entry.name,
+                breed = type(entry.breed) == "string" and entry.breed or nil,
+                variant = type(entry.variant) == "string" and entry.variant or nil,
+                alive = entry.alive == true,
+                health = finite(entry.health) and entry.health or nil,
+                maximum = finite(entry.maximum) and entry.maximum > 0 and entry.maximum or nil,
+                remaining = finite(entry.remaining) and entry.remaining or 0,
+            }
+        end
+    end
+    mod._team_hud_snapshot = { rows = rows, received_at = gameplay_time() }
+end
+
+mod.heretic_team_hud_data = function()
+    if not setting("enable_versus_mode") or VersusModeState.training_available() then return {} end
+    local snapshot = is_server() and VersusModeState.team_hud_snapshot() or mod._team_hud_snapshot
+    if not snapshot or snapshot.received_at and gameplay_time() - snapshot.received_at > 3 then return {} end
+    local rows = {}
+    for i, entry in ipairs(snapshot.rows) do
+        local remaining = math_max(0, entry.remaining - (snapshot.received_at and gameplay_time() - snapshot.received_at or 0))
+        rows[i] = {
+            name = entry.name,
+            portrait = ENEMY_PORTRAITS[entry.breed] or ENEMY_PORTRAIT_FALLBACK,
+            label = VersusModeState.respawn_label(entry.breed, entry.variant),
+            health = entry.health, maximum = entry.maximum,
+            status = entry.alive and "" or remaining > 0 and mod:localize("heretic_team_wait", math.ceil(remaining))
+                or mod:localize("heretic_team_ready"),
+            alive = entry.alive,
+        }
+    end
+    return rows
+end
+
 mod.update = function(dt)
+    if is_server() and setting("enable_versus_mode") and mod._realms_compat then
+        mod._team_hud_send_delay = (mod._team_hud_send_delay or 0) - dt
+        if mod._team_hud_send_delay <= 0 then
+            mod._team_hud_send_delay = 0.5
+            mod._realms_compat.send_team_hud(VersusModeState.team_hud_snapshot())
+        end
+    end
     VersusModeState.update_night_vision(dt)
     if mod._realms_compat then
         mod._realms_compat.update(setting("enable_versus_mode"))
@@ -24956,6 +25033,10 @@ function VersusModeState.release_remote_controls(reason, suppress_respawn)
 end
 
 mod.on_game_state_changed = function(status, state_name)
+    if status == "exit" then
+        mod._team_hud_snapshot = nil
+        mod._team_hud_send_delay = nil
+    end
     if status == "exit" then VersusModeState.clear_night_vision() end
     if state_name == "RealmsPreparationState" and status == "enter" then
         VersusModeState.begin_realms_preparation_roster()
@@ -25060,6 +25141,7 @@ mod.on_all_mods_loaded = function()
             end,
             lobby_plan = VersusModeState.apply_replicated_lobby_plan,
             roster = VersusModeState.apply_replicated_roster,
+            team_hud = VersusModeState.receive_team_hud,
             spawn = VersusModeState.try_remote_respawn,
             input = VersusModeState.receive_remote_input,
             action = VersusModeState.receive_remote_action,
@@ -26277,6 +26359,13 @@ mod:register_hud_element({
 })
 
 mod._night_vision = {}
+mod:register_hud_element({
+    class_name = "HudElementVersusTeam",
+    filename = "VersusMode/scripts/mods/VersusMode/VersusMode_team_hud",
+    use_hud_scale = true,
+    visibility_groups = { "alive", "dead" },
+})
+
 mod._night_vision.ramp = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_ramp")
 mod._night_vision.optics = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_optics")
 mod._night_vision.optics.install(mod)

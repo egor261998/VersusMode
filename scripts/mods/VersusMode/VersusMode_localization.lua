@@ -1,4 +1,6 @@
 return {
+    heretic_team_wait = { en = "Respawn in %d s", ru = "Возрождение через %d с" },
+    heretic_team_ready = { en = "Awaiting spawn", ru = "Ожидает появления" },
     training_picker_hint = { en = "Psykhanium: click to control an enemy. No respawn cooldowns. Esc closes this menu.", ru = "Псайканиум: нажми на врага, чтобы взять управление. Без КД. Esc закрывает меню." },
     training_return = { en = "Return to Operative", ru = "Вернуться к оперативнику" },
     spawn_picker_cooldown = { en = "Cooldown: %d s", ru = "КД: %d с" },

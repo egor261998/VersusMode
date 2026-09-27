@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.10 — Right-side Heretic player HUD (2026-09-27)
+--------------------------------------------------
+
+- Added enemy portraits, player names, current breeds and health on the right.
+- Dead players show their next breed and live respawn countdown.
+- Host sends a separate HUD snapshot every 0.5 seconds, accepted only from host.
+- Bots and Psykhanium practice are excluded; stale client snapshots expire.
+
 3.0.9 — Psykhanium Heretic practice (2026-09-27)
 ------------------------------------------------
 

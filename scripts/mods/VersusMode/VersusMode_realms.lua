@@ -7,6 +7,7 @@ local HELLO_RETRY_INTERVAL = 2
 local RPC_HELLO = "vm_hello"
 local RPC_LOBBY_PLAN = "vm_lobby_plan"
 local RPC_ROSTER = "vm_roster"
+local RPC_TEAM_HUD = "vm_team_hud"
 local RPC_SPAWN = "vm_spawn"
 local RPC_INPUT = "vm_input"
 local RPC_ACTION = "vm_action"
@@ -169,6 +170,12 @@ local function receive_roster(sender_peer_id, payload)
     invoke("roster", payload)
 end
 
+local function receive_team_hud(sender_peer_id, payload)
+    if is_client() and from_host(sender_peer_id) and valid_payload(payload) then
+        invoke("team_hud", payload)
+    end
+end
+
 local function receive_spawn(sender_peer_id, payload)
     if is_host() and valid_payload(payload) then
         invoke("spawn", normalize_peer_id(sender_peer_id), payload)
@@ -230,6 +237,7 @@ function RealmsBridge.install(callbacks)
     local registered = register_rpc(RPC_HELLO, receive_hello)
         and register_rpc(RPC_LOBBY_PLAN, receive_lobby_plan)
         and register_rpc(RPC_ROSTER, receive_roster)
+        and register_rpc(RPC_TEAM_HUD, receive_team_hud)
         and register_rpc(RPC_SPAWN, receive_spawn)
         and register_rpc(RPC_INPUT, receive_input)
         and register_rpc(RPC_ACTION, receive_action)
@@ -356,6 +364,11 @@ end
 
 function RealmsBridge.send_roster(payload, recipient)
     return send(RPC_ROSTER, recipient or "others", payload)
+end
+
+function RealmsBridge.send_team_hud(payload)
+    if is_host() then return send(RPC_TEAM_HUD, "others", payload) end
+    return false
 end
 
 function RealmsBridge.send_lobby_plan(payload, recipient)
