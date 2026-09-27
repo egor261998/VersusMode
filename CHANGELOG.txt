@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.44 - Cached picker layout compatibility (2026-09-27)
+---------------------------------------------------------
+
+- Keep the flat picker usable when a running game retains pre-tab definitions or choices.
+- Prevent missing group widgets from interrupting view creation; test legacy and current choice data.
+
 3.0.43 - Imported portrait in controlled enemy panel (2026-09-27)
 ---------------------------------------------------------------
 

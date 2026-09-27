@@ -23,6 +23,11 @@ VersusModeSpawnView.on_enter = function(self)
     self._pending_choice = nil
     self._pending_elapsed = 0
     local widgets = self._widgets_by_name
+    -- A running game can retain pre-tab definitions while loading this newer view.
+    self._grouped = widgets.group_bosses ~= nil and widgets.group_ranged ~= nil and widgets.group_melee ~= nil
+    for _, entry in ipairs(self._all_choices) do
+        if not entry.group then self._grouped = false end
+    end
     widgets.title.content.text = mod:localize("spawn_picker_title")
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
     widgets.cancel.content.text = mod:localize("spawn_picker_cancel")
@@ -34,8 +39,12 @@ VersusModeSpawnView.on_enter = function(self)
     end
     for _, group in ipairs({ "bosses", "ranged", "melee" }) do
         local group_id = group
-        widgets["group_" .. group].content.text = mod:localize("spawn_group_" .. group)
-        widgets["group_" .. group].content.hotspot.pressed_callback = function() self:cb_group(group_id) end
+        local widget = widgets["group_" .. group]
+        if widget then
+            widget.content.visible = self._grouped
+            widget.content.text = mod:localize("spawn_group_" .. group)
+            widget.content.hotspot.pressed_callback = function() self:cb_group(group_id) end
+        end
     end
     local selected = self._selected and self._choices[self._selected]
     self:cb_group(selected and selected.group or "bosses", selected)
@@ -48,7 +57,7 @@ VersusModeSpawnView.cb_group = function(self, group, preferred)
     self._selected = nil
     local available = {}
     for _, entry in ipairs(self._all_choices) do
-        if entry.group == group then
+        if (self._grouped == false or entry.group == group) and #self._choices < definitions.max_cards then
             local i = #self._choices + 1
             self._choices[i] = entry
             if entry == preferred then self._selected = i end
@@ -60,7 +69,10 @@ VersusModeSpawnView.cb_group = function(self, group, preferred)
     self._hover_initialized = false
     local widgets = self._widgets_by_name
     for _, id in ipairs({ "bosses", "ranged", "melee" }) do
-        widgets["group_" .. id].style.background.color = id == group and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
+        local widget = widgets["group_" .. id]
+        if widget then
+            widget.style.background.color = id == group and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
+        end
     end
     for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]

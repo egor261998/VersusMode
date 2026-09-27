@@ -6,6 +6,29 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Picker opens with cached pre-tab definitions and legacy choices',`
+local choices={{name='gun',label='Gun'},{name='hound',label='Hound',cd=30}}
+local held=false
+local mod={_view_definitions={versus_mode_spawn_view={max_cards=28}},
+ spawn_picker_choices=function()return choices end,spawn_picker_cooldown=function(e)return e.cd or 0 end,
+ training_available=function()return false end,spawn_picker_hold=function(v)held=v end,
+ localize=function(_,k)return k end}
+function get_mod()return mod end
+function callback()return function()end end
+function class()return {super={init=function()end,on_enter=function()end}}end
+local loaded=(function() ${fs.readFileSync(path.join(base,'ui/versus_spawn_view.lua'),'utf8')} end)()
+for _,legacy_choices in ipairs({true,false})do
+ if not legacy_choices then choices[1].group='ranged';choices[2].group='melee' end
+ local widgets={title={content={}},hint={content={}},cancel={content={hotspot={}}}}
+ for i=1,28 do widgets['enemy_'..i]={content={hotspot={}}}end
+ local view=setmetatable({_widgets_by_name=widgets},{__index=VersusModeSpawnView})
+ view:init({});view:on_enter()
+ assert(held and not view._grouped and #view._choices==2 and view._selected==1)
+ assert(widgets.enemy_2.content.hotspot.disabled and not widgets.enemy_3.content.visible)
+ local chosen;view.cb_choose_entry=function(_,e)chosen=e end
+ widgets.enemy_1.content.hotspot.pressed_callback();assert(chosen==choices[1])
+end
+`);
 run('Picker tabs preserve card identity and hide other groups',`
 local mod={_view_definitions={versus_mode_spawn_view={max_cards=28}},spawn_picker_cooldown=function(e)return e.cd or 0 end}
 function get_mod()return mod end
