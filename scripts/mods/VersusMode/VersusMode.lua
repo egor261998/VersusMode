@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.45"
+mod.version = "3.0.46"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12733,7 +12733,9 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
     end
 
     if not target then
-        VersusModeState.echo_localized("hud_no_valid_target")
+        if not state.breed.is_boss then
+            VersusModeState.echo_localized("hud_no_valid_target")
+        end
         set_status(state, "No valid target", 2.5)
 
         return

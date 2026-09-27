@@ -1,6 +1,11 @@
 Versus Mode changelog
 =====================
 
+3.0.46 - Boss chat notification (2026-09-27)
+------------------------------------------
+
+- Suppress the no-valid-target chat message for controlled bosses; retain HUD status and target checks.
+
 3.0.45 - Plasma shot cooldown (2026-09-27)
 -----------------------------------------
 
