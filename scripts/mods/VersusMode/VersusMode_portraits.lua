@@ -154,10 +154,9 @@ function portraits.draw(_, renderer, style, content, position, size)
         local left = position[1] + (size[1] - photo.width * scale) / 2
         local top = position[2] + (size[2] - photo.height * scale) / 2
         for _, run in ipairs(photo.runs) do
-            run.color = run.color or Color(255, run[5], run[6], run[7])
             UIRenderer.draw_rect(renderer,
                 Vector3(left + run[1] * scale, top + run[2] * scale, position[3]),
-                Vector3(run[3] * scale, run[4] * scale, 0), run.color)
+                Vector3(run[3] * scale, run[4] * scale, 0), Color(255, run[5], run[6], run[7]))
         end
         return
     end

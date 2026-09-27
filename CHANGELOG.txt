@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.42 - Portrait frame lifetime fix (2026-09-27)
+-----------------------------------------------
+
+- Recreate temporary engine colors during each draw instead of caching Vector4 values across frames.
+- Add a regression check that invalidates prior-frame colors before redrawing the same portrait.
+
 3.0.41 - Grouped enemy picker (2026-09-27)
 ----------------------------------------
 

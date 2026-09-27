@@ -5,15 +5,15 @@ const source=fs.readFileSync(path.join(root,'scripts/mods/VersusMode/VersusMode_
 const importedSource=fs.readFileSync(path.join(root,'scripts/mods/VersusMode/VersusMode_portrait_images.lua'),'utf8');
 const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);
 const code=`
-local texture_calls,rect_calls=0,0;local fail=false;local force=false
+local texture_calls,rect_calls=0,0;local fail=false;local force=false;local frame=1
 local renderer={draw_texture=function()texture_calls=texture_calls+1;if fail then error('missing material')end end,
-draw_rect=function(_,pos,size)assert(pos[1]==pos[1] and size[1]>0 and size[2]>0);rect_calls=rect_calls+1 end}
+draw_rect=function(_,pos,size,color)assert(pos[1]==pos[1] and size[1]>0 and size[2]>0);assert(color.frame==frame,'expired frame color');rect_calls=rect_calls+1 end}
 function require()return renderer end
 local imported=(function()${importedSource} end)()
 function get_mod()return {get=function()return force end,io_dofile=function()return imported end}end
 Application={can_get_resource=function()return true end}
 function Vector3(...)return {...}end
-function Color(...)return {...}end
+function Color(...)local c={...};c.frame=frame;return c end
 local portraits=(function()${source} end)()
 local result={};local n=0
 for breed in pairs(portraits.profiles)do
@@ -39,6 +39,9 @@ for breed in pairs(portraits.profiles)do
 end
 portraits.draw(nil,{},nil,{portrait_breed='chaos_ogryn_executor',portrait='native',use_imported_portrait=true},{0,0,1},{110,110})
 assert(rect_calls==#imported.chaos_ogryn_executor.runs and texture_calls==0)
+frame=frame+1
+portraits.draw(nil,{},nil,{portrait_breed='chaos_ogryn_executor',portrait='native',use_imported_portrait=true},{0,0,1},{110,110})
+assert(rect_calls==2*#imported.chaos_ogryn_executor.runs and texture_calls==0)
 rect_calls=0
 local content={portrait_breed='renegade_gunner',portrait='native'}
 portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(texture_calls==1 and rect_calls==0)
