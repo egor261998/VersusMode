@@ -1,12 +1,12 @@
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local UIFontSettings = require("scripts/managers/ui/ui_font_settings")
 
-local MAX_CARDS = 24
-local COLUMNS = 6
+local MAX_CARDS = 28
+local COLUMNS = 7
 local scenegraph = {
     screen = { scale = "fit", size = { 1920, 1080 }, position = { 0, 0, 80 } },
     panel = { parent = "screen", horizontal_alignment = "center", vertical_alignment = "center",
-        size = { 1540, 1020 }, position = { 0, 0, 2 } },
+        size = { 1800, 1020 }, position = { 0, 0, 2 } },
 }
 local function node(name, x, y, width, height)
     scenegraph[name] = { parent = "panel", horizontal_alignment = "left", vertical_alignment = "top",
@@ -53,7 +53,7 @@ for i = 1, MAX_CARDS do
     }, name, { visible = false })
 end
 for _, name in ipairs({ "cancel" }) do
-    node(name, 570, 950, 400, 60)
+    node(name, 700, 950, 400, 60)
     widgets[name] = UIWidget.create_definition({
         { pass_type = "hotspot", content_id = "hotspot" },
         { pass_type = "rect", style = { color = { 240, 50, 75, 50 } } },

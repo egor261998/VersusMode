@@ -10,13 +10,13 @@ const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
 run('Expanded roster fits all cards and preserves unique choices',`
 local VersusModeState={respawn_breeds=${source.slice(...roster.range)},breeds={},specialist_variants_enabled=function()return false end}
 local seen={};for _,entry in ipairs(VersusModeState.respawn_breeds)do assert(not seen[entry.name]);seen[entry.name]=true;VersusModeState.breeds[entry.name]={} end
-assert(#VersusModeState.respawn_breeds==23)
+assert(#VersusModeState.respawn_breeds==25)
 for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant','chaos_plague_ogryn','chaos_spawn','chaos_beast_of_nurgle','chaos_ogryn_houndmaster','chaos_daemonhost','chaos_mutator_daemonhost','renegade_captain','cultist_captain','renegade_twin_captain','renegade_twin_captain_two'})do assert(seen[name],name) end
 ${fn('VersusModeState.available_spawn_choices')}
-assert(#VersusModeState.available_spawn_choices()==23)
-VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==22)
+assert(#VersusModeState.available_spawn_choices()==25)
+VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==24)
 `);
-if(!/local MAX_CARDS = 24/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 24 cards');
+if(!/local MAX_CARDS = 28/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 28 cards');
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));
 const aimHook=source.slice(source.indexOf('mod:hook(MinionAttack, "aim_at_target"'),source.indexOf('-- Player-controlled gunners do not need'));
 const manualDeclaration=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='MANUAL_AIM_BREEDS'));
@@ -58,6 +58,14 @@ for _,breed in ipairs({'renegade_gunner','cultist_gunner'})do
  current.requested_attack.gunner_combat_range='far';ray=nil;fire('ai_dodge',3);ray='crosshair'
 end
 current.breed.name='chaos_ogryn_gunner';fire('ai_dodge',3)
+VersusModeState.shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}
+for _,breed in ipairs({'renegade_shocktrooper','cultist_shocktrooper'})do
+ VersusModeState.controlled_elite_breeds[breed]=true
+ current.breed.name=breed;current.requested_attack={shotgun_combat_range='close'}
+ current.grenadier_target_lock=false;fire('crosshair',3)
+ current.grenadier_target_lock=true;fire('ai_dodge',3)
+ current.requested_attack.shotgun_combat_range='melee';fire('ai_dodge',3)
+end
 current=nil;fire('ai_dodge',3)
 local function state_look_direction()return nil,'forward' end
 local visual_aim
@@ -249,7 +257,7 @@ local function get_mod()return mod end
 local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
 local count=0;for _,g in ipairs(data.options.widgets)do if g.setting_id=='melee_marker_group'then
  for _,w in ipairs(g.sub_widgets)do assert(w.type=='checkbox' and w.default_value==true);count=count+1 end
-end end;assert(count==21)
+end end;assert(count==23)
 local s={possessed=true,unit='enemy',breed={name='chaos_ogryn_executor'},yaw=0,pitch=1.2};mod._control=s
 local ALIVE={enemy=true};local menu=false;local Managers={ui={has_active_view=function()return menu end}}
 local positions={enemy=Vector3(0,0,0),target=Vector3(2,0,0)}

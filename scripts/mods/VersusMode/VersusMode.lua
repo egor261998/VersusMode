@@ -121,6 +121,8 @@ local VersusModeState = {
         { name = "chaos_armored_hound", label = "Armored Hound" },
         { name = "renegade_executor", label = "Scab Mauler" },
         { name = "cultist_mutant", label = "Mutant" },
+        { name = "renegade_shocktrooper", label = "Scab Shotgunner" },
+        { name = "cultist_shocktrooper", label = "Dreg Shotgunner" },
         { name = "chaos_plague_ogryn", label = "Plague Ogryn" },
         { name = "chaos_spawn", label = "Chaos Spawn" },
         { name = "chaos_beast_of_nurgle", label = "Beast of Nurgle" },
@@ -141,7 +143,10 @@ local VersusModeState = {
         chaos_ogryn_executor = true,
         chaos_ogryn_bulwark = true,
         renegade_executor = true,
+        renegade_shocktrooper = true,
+        cultist_shocktrooper = true,
     },
+    shotgun_breeds = { renegade_shocktrooper = true, cultist_shocktrooper = true },
     gunner_smoke_melee_range = 4,
     gunner_breeds = {
         renegade_gunner = true,
@@ -440,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.24"
+mod.version = "3.0.25"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -737,6 +742,14 @@ end
 VersusModeState.ensure_outline_settings()
 
 local ATTACKS = {
+    renegade_shocktrooper = {
+        primary = { label = "Shotgun Blast", action_name = "shoot", selector_name = "close_combat_utility", shotgun_combat_range = "close", force_utility = true, cancellable = true, camera_directed = true, stationary = true, single_shoot_cycle = true },
+        heavy = { label = "Gun Butt Strike", action_name = "melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+    },
+    cultist_shocktrooper = {
+        primary = { label = "Shotgun Blast", action_name = "shoot", selector_name = "close_combat_utility", shotgun_combat_range = "close", force_utility = true, cancellable = true, camera_directed = true, stationary = true, single_shoot_cycle = true },
+        heavy = { label = "Gun Butt Strike", action_name = "melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+    },
     renegade_sniper = {
         primary = { label = "Fire Longlas", action_name = "shoot", manual_aim = true },
         heavy = { label = "Aim Laser", action_name = "shoot", manual_aim = true, laser_only = true },
@@ -9632,7 +9645,7 @@ local function pause_brain(state)
         end
     end
 
-    if (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name]) and state.blackboard and state.blackboard.aim then
+    if (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name]) and state.blackboard and state.blackboard.aim then
         state.blackboard.aim.controlled_aiming = false
     end
 
@@ -10564,7 +10577,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
 
     if not controlled_unit_dead
         and state.attack_deadline
-        and (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name] or state.captain_combat_restore) then
+        and (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name] or state.captain_combat_restore) then
         pause_brain(state)
     end
 
@@ -11239,7 +11252,9 @@ local function prepare_native_attack(state, attack)
         return false, "behavior blackboard component unavailable"
     end
 
-    if VersusModeState.gunner_breeds[state.breed.name] then
+    if VersusModeState.shotgun_breeds[state.breed.name] then
+        behavior_component.combat_range = attack.shotgun_combat_range or "close"
+    elseif VersusModeState.gunner_breeds[state.breed.name] then
         behavior_component.combat_range = attack.gunner_combat_range or "far"
     elseif VersusModeState.controlled_elite_breeds[state.breed.name] then
         -- Bulwark's inner utility selector needs the native melee branch.
@@ -12958,7 +12973,7 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
 
     local stationary_netter = state.breed.name == NETTER_BREED_NAME and attack.action_name == "shoot_net"
 
-    if state.navigation and (stationary_grenade or stationary_netter or attack.gunner_combat_range == "far" or command_free_aim and attack.stationary) then
+    if state.navigation and (stationary_grenade or stationary_netter or attack.gunner_combat_range == "far" or attack.shotgun_combat_range == "close" or command_free_aim and attack.stationary) then
         safe_extension_call(state.navigation, "set_enabled", false)
         safe_extension_call(state.locomotion, "set_wanted_velocity_flat", Vector3.zero())
     elseif state.navigation then
@@ -23058,7 +23073,7 @@ end)
 mod:hook(VersusModeState.combat_range_user_behavior, "update_minion_phase", function(func, self, unit, blackboard, dt, t)
     local state = VersusModeState.control_for_unit(unit)
 
-    if state and state.attack_deadline and VersusModeState.gunner_breeds[state.breed.name] then
+    if state and state.attack_deadline and (VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name]) then
         -- Hold the commanded shooting/melee range until the native leaf starts.
         return
     end
@@ -23221,8 +23236,8 @@ function VersusModeState.controlled_gunner_shot(unit)
     local state = VersusModeState.control_for_unit(unit)
     local attack = state and state.requested_attack
     return state and state.possessed and state.unit == unit and state.attack_deadline
-        and VersusModeState.gunner_breeds[state.breed.name]
-        and attack and attack.gunner_combat_range == "far" and state or nil
+        and attack and (VersusModeState.gunner_breeds[state.breed.name] and attack.gunner_combat_range == "far"
+            or (VersusModeState.shotgun_breeds or {})[state.breed.name] and attack.shotgun_combat_range == "close") and state or nil
 end
 
 mod:hook(BtShootAction, "enter", function(func, self, unit, breed, blackboard, scratchpad, action_data, t)
@@ -23257,13 +23272,13 @@ end)
 mod:hook(MinionAttack, "shoot_hit_scan", function(func, world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
     local state = VersusModeState.controlled_gunner_shot(unit)
     if state and Specialist.free_aim(state)
-        and (state.breed.name == "renegade_gunner" or state.breed.name == "cultist_gunner") then
+        and (state.breed.name == "renegade_gunner" or state.breed.name == "cultist_gunner" or (VersusModeState.shotgun_breeds or {})[state.breed.name]) then
         local aim_position = camera_aim_ray(state)
         if aim_position then
             -- Resolve the camera point at shot time, after AI dodge targeting.
             -- Zero only this shot's spread; retain native muzzle collision and FX.
             shoot_position = aim_position
-            optional_spread_multiplier = 0
+            if not (VersusModeState.shotgun_breeds or {})[state.breed.name] then optional_spread_multiplier = 0 end
         end
     end
     return func(world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
@@ -23317,9 +23332,9 @@ mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchp
     local attack = state and state.requested_attack
 
     if not state or state.unit ~= unit or not state.attack_deadline
-        or not VersusModeState.gunner_breeds[state.breed.name]
+        or not (VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name])
         or not Specialist.free_aim(state)
-        or not attack or attack.gunner_combat_range ~= "far" then
+        or not attack or (attack.gunner_combat_range ~= "far" and attack.shotgun_combat_range ~= "close") then
         return func(self, unit, t, scratchpad, action_data, breed)
     end
 
@@ -23384,7 +23399,7 @@ mod:hook(BtShootAction, "_update_shooting", function(func, self, unit, t, scratc
         and state.unit == unit
         and state.attack_deadline
         and attack
-        and attack.casual_command
+        and (attack.casual_command or VersusModeState.shotgun_breeds[state.breed.name])
         and attack.single_shoot_cycle
         and fired_last_shot then
         state.command_action_complete = true
@@ -23959,15 +23974,8 @@ mod:hook(MinionAttack, "get_aim_position", function(func, unit, scratchpad, opti
         return flamer_aim_position
     end
 
-    local gunner_aim_position = state
-        and state.unit == unit
-        and VersusModeState.gunner_breeds[state.breed.name]
-        and state.attack_deadline
-        and state.requested_attack
-        and state.requested_attack.camera_directed
-        and state.requested_attack.gunner_combat_range == "far"
-        and Specialist.free_aim(state)
-        and camera_aim_ray(state)
+    local gunner_aim_position = VersusModeState.controlled_gunner_shot(unit)
+        and Specialist.free_aim(state) and camera_aim_ray(state)
 
     if gunner_aim_position then
         return gunner_aim_position
@@ -24891,7 +24899,7 @@ mod:hook(BtConditions, "minion_can_use_special_action", function(func, unit, bla
     -- consume a player command. Defer it for the short command window.
     if state
         and state.unit == unit
-        and (CAPTAIN_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name])
+        and (CAPTAIN_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name])
         and state.attack_deadline
         and requested then
         return false

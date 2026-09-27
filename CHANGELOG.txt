@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.25 - Playable Shotgunners (2026-09-27)
+----------------------------------------
+
+- Add Scab and Dreg Shotgunners with native shooting and melee commands.
+- Hold the correct combat range and aim at the crosshair without removing pellet spread.
+- Reuse controlled weapon animation aiming and restore it on release.
+- Expand selection to 28 cards and add both melee guide checkboxes.
+
 3.0.24 - Host Trapper/Sniper shot cooldown (2026-09-27)
 ----------------------------------------------------
 

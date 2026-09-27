@@ -381,6 +381,8 @@ return {
                 sub_widgets = {
                     { setting_id = "melee_marker_chaos_ogryn_executor", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_renegade_executor", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
+                    { setting_id = "melee_marker_renegade_shocktrooper", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
+                    { setting_id = "melee_marker_cultist_shocktrooper", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_chaos_ogryn_bulwark", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_renegade_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_cultist_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
