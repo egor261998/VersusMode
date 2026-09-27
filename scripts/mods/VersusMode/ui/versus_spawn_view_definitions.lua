@@ -34,6 +34,23 @@ for _, name in ipairs({ "title", "hint" }) do
     }, name)
 end
 local function visible(content) return content.visible ~= false end
+local function card_background(content, style)
+    local color = style.color
+    local blocked = content.hotspot.disabled
+    local selected = content.hotspot.is_hover or content.selected
+    color[1] = not blocked and selected and 245 or 230
+    color[2] = blocked and 55 or selected and 63 or 31
+    color[3] = blocked and 30 or selected and 93 or 43
+    color[4] = blocked and 30 or selected and 53 or 40
+end
+local function card_frame(content, style)
+    local selected = not content.hotspot.disabled and (content.hotspot.is_hover or content.selected)
+    local color = style.color
+    color[1] = 255
+    color[2] = selected and 155 or 83
+    color[3] = selected and 235 or 105
+    color[4] = selected and 115 or 87
+end
 for i, group in ipairs({ "melee", "ranged", "bosses" }) do
     local name = "group_" .. group
     node(name, 180 + (i - 1) * 480, 120, 440, 50)
@@ -54,9 +71,9 @@ for i = 1, MAX_CARDS do
     cooldown_style.offset = { 5, 158, 3 }
     widgets[name] = UIWidget.create_definition({
         { pass_type = "hotspot", content_id = "hotspot", visibility_function = visible },
-        { pass_type = "rect", style_id = "background", style = { color = { 230, 31, 43, 40 } }, visibility_function = visible },
+        { pass_type = "rect", style_id = "background", style = { color = { 230, 31, 43, 40 } }, visibility_function = visible, change_function = card_background },
         { pass_type = "texture", value = "content/ui/materials/frames/frame_tile_2px", style_id = "frame",
-            style = { color = { 255, 83, 105, 87 }, scale_to_material = true, offset = { 0, 0, 1 } }, visibility_function = visible },
+            style = { color = { 255, 83, 105, 87 }, scale_to_material = true, offset = { 0, 0, 1 } }, visibility_function = visible, change_function = card_frame },
         { pass_type = draw_portrait and "logic" or "texture", value_id = draw_portrait and "draw_portrait" or "portrait",
             value = draw_portrait or "content/ui/materials/dividers/skull_rendered_center_01",
             style = { size = { 110, 110 }, offset = { 60, 10, 2 }, color = { 255, 255, 255, 255 } }, visibility_function = visible },
