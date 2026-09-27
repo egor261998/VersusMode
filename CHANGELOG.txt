@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.32 - Shotgun shot cooldown (2026-09-27)
+-----------------------------------------
+
+- Enforce a 0.5-second cooldown after each controlled Scab/Dreg shotgun shot.
+- Melee remains available during this server-authoritative firing cooldown.
+
 3.0.31 - Shotgunner melee/ranged transitions (2026-09-27)
 --------------------------------------------------------
 

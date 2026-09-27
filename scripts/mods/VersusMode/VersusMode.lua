@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.31"
+mod.version = "3.0.32"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12570,6 +12570,12 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
     local hound_solution
     local command_free_aim = Specialist.free_aim(state) and attack.camera_directed
 
+    if VersusModeState.shotgun_breeds[state.breed.name]
+        and attack.shotgun_combat_range == "close"
+        and t < (state.shotgun_fire_cooldown_until or 0) then
+        return
+    end
+
     if state.breed.name == NETTER_BREED_NAME and attack.action_name == "shoot_net"
         and t < (state.netter_fire_cooldown_until or 0) then
         local remaining = state.netter_fire_cooldown_until - t
@@ -23451,6 +23457,9 @@ mod:hook(BtShootAction, "_update_shooting", function(func, self, unit, t, scratc
         and (attack.casual_command or VersusModeState.shotgun_breeds[state.breed.name])
         and attack.single_shoot_cycle
         and fired_last_shot then
+        if VersusModeState.shotgun_breeds[state.breed.name] then
+            state.shotgun_fire_cooldown_until = t + 0.5
+        end
         state.command_action_complete = true
         state.attack_min_until = 0
         state.attack_phase = "FIRED"
