@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.37 - Direct combat only (2026-09-27)
+---------------------------------------
+
+- Disable Adaptive Combat and keep direct attack bindings for all controlled enemies.
+- Holding Q only toggles target lock, including bosses, without switching combat layouts.
+- Ignore legacy adaptive-mode state received from the network.
+
 3.0.36 - Beast manual spit out (2026-09-27)
 ------------------------------------------
 

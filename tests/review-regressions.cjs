@@ -6,6 +6,17 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Legacy adaptive state cannot change the direct attack layout',`
+local Specialist={};local direct={primary={action_name='melee_attack'}}
+local function attacks_for_state()return direct end
+${fn('Specialist.casual_supported')}
+${fn('resolved_attacks_for_state')}
+for _,name in ipairs({'chaos_spawn','chaos_plague_ogryn','chaos_beast_of_nurgle','renegade_captain','chaos_ogryn_executor'})do
+ local s={breed={name=name},casual_combat=true}
+ assert(not Specialist.casual_supported(s))
+ assert(resolved_attacks_for_state(s)==direct)
+end
+`);
 run('Beast F releases a consumed player without a new aim target',`
 local Specialist={};local now=20;local wakes=0
 local function gameplay_time()return now end
@@ -230,7 +241,7 @@ for _,name in ipairs({'chaos_spawn','chaos_plague_ogryn','chaos_beast_of_nurgle'
  local s={possessed=true,breed={name=name,is_boss=true},casual_combat=true,grenadier_target_lock=true,locked_target='old'}
  assert(Specialist.target_mode_supported(s))
  Specialist.toggle_target_lock(s)
- assert(not s.casual_combat and s.grenadier_target_lock==false and s.locked_target==nil and Specialist.free_aim(s))
+ assert(s.casual_combat and s.grenadier_target_lock==false and s.locked_target==nil and Specialist.free_aim(s))
  Specialist.toggle_target_lock(s)
  assert(s.casual_combat and s.grenadier_target_lock and s.locked_target=='nearest' and not Specialist.free_aim(s))
  s.remote_client=true;Specialist.toggle_target_lock(s);assert(sent=='target_lock' and s.grenadier_target_lock)

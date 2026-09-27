@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.36"
+mod.version = "3.0.37"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -1301,7 +1301,8 @@ function Specialist.casual_breed_supported(breed_or_name)
 end
 
 function Specialist.casual_supported(state)
-    return state and state.breed and Specialist.casual_breed_supported(state.breed) or false
+    -- Player commands always use direct attacks; legacy payloads cannot enable adaptive combat.
+    return false
 end
 
 function VersusModeState.daemonhost_adaptive_execution_action(state, action_name)
@@ -10848,8 +10849,7 @@ local function begin_possession(unit, player, player_unit, controller_peer_id, v
         -- First person is opt-in and never applies to bosses. The live toggle
         -- can change this local presentation without changing target mode.
         first_person = breed.is_boss ~= true and setting("default_first_person_view") == true,
-        casual_combat = Specialist.casual_breed_supported(breed)
-            and not Specialist.target_mode_supported({ breed = breed }),
+        casual_combat = false,
         grenadier_target_lock = false,
         old_controlled_aiming = aim_component and aim_component.controlled_aiming or false,
         controlled_normal_boss = controlled_normal_boss == true,
@@ -17621,7 +17621,7 @@ function VersusModeState.begin_client_control(payload)
         animation = safe_extension(unit, "animation_system"),
         blackboard = blackboard,
         breed = breed,
-        casual_combat = Specialist.casual_breed_supported(breed) and payload.casual_combat == true,
+        casual_combat = false,
         first_person = breed.is_boss ~= true and setting("default_first_person_view") == true,
         grenadier_target_lock = false,
         versus_role = role,
@@ -17756,7 +17756,7 @@ function VersusModeState.apply_remote_status(payload)
         end
 
         if type(payload.casual_combat) == "boolean" and Specialist.casual_supported(state) then
-            state.casual_combat = payload.casual_combat
+            state.casual_combat = false
         end
 
         if type(payload.grenadier_target_lock) == "boolean" then
@@ -18504,45 +18504,6 @@ function Specialist.toggle_target_lock(state)
         state.grenadier_target_lock = false
         set_locked_target(state, nil)
         set_status(state, mod:localize("hound_target_lock_disabled"), 2.5)
-
-        return
-    end
-
-    if Specialist.casual_supported(state) then
-        if state.attack_deadline then
-            set_status(state, "Cannot change targeting during an attack", 2)
-
-            return
-        end
-
-        state.casual_combat = state.casual_combat ~= true
-
-        -- Crusher and Bulwark retain the existing Auto/Free-aim pairing:
-        -- Casual uses a target lock, while Advanced exposes their four direct
-        -- camera attacks. Bosses use camera-selected real targets when unlocked;
-        -- native grabs and charges still require a valid living target.
-        if Specialist.target_mode_supported(state) then
-            state.grenadier_target_lock = state.casual_combat
-
-            if state.casual_combat then
-                state.grenade_preview_solution = nil
-                state.manual_aim_position = nil
-                state.manual_aim_hit_unit = nil
-                state.manual_aim_distance = nil
-                destroy_grenade_preview(state)
-                Specialist.destroy_hound_preview(state)
-                set_locked_target(state, nearest_attack_target(state))
-            else
-                set_locked_target(state, nil)
-                update_manual_aim_preview(state)
-            end
-        end
-
-        set_status(
-            state,
-            state.casual_combat and "Casual Combat enabled" or "Advanced Combat enabled",
-            2.5
-        )
 
         return
     end
