@@ -129,11 +129,9 @@ local VersusModeState = {
         { name = "chaos_beast_of_nurgle", label = "Beast of Nurgle" },
         { name = "chaos_ogryn_houndmaster", label = "Houndmaster" },
         { name = "chaos_daemonhost", label = "Daemonhost" },
-        { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost" },
-        { name = "renegade_captain", label = "Scab Captain" },
+        { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost", label_key = "melee_marker_chaos_mutator_daemonhost" },
+        { name = "renegade_captain", label = "Scab Lieutenant", label_key = "spawn_scab_lieutenant" },
         { name = "cultist_captain", label = "Dreg Captain" },
-        { name = "renegade_twin_captain", label = "Rodin Karnak" },
-        { name = "renegade_twin_captain_two", label = "Rinda Karnak" },
     },
     -- Manual boss selection does not enable automatic takeover of map bosses.
     allow_boss_reinforcements = false,
@@ -447,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.52"
+mod.version = "3.0.53"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -3325,6 +3323,7 @@ function VersusModeState.respawn_label(breed_name, variant_id)
         local entry = VersusModeState.respawn_breeds[i]
 
         if entry.name == breed_name then
+            if entry.label_key then return mod:localize(entry.label_key) end
             local breed = VersusModeState.breeds[breed_name]
             local display_name = breed and breed.display_name
 

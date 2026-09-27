@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.53 - Boss picker cleanup (2026-09-27)
+---------------------------------------
+
+- Remove the Karnak twins from the spawn roster and identify the existing Scab captain as Scab Lieutenant.
+- Distinguish the mutator Daemonhost using a localized label; retain both different breeds.
+
 3.0.52 - Separate Beast spit input (2026-09-27)
 ---------------------------------------------
 

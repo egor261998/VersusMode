@@ -279,11 +279,11 @@ const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
 run('Expanded roster fits all cards and preserves unique choices',`
 local VersusModeState={respawn_breeds=${source.slice(...roster.range)},breeds={},specialist_variants_enabled=function()return false end}
 local seen={};for _,entry in ipairs(VersusModeState.respawn_breeds)do assert(not seen[entry.name]);seen[entry.name]=true;VersusModeState.breeds[entry.name]={} end
-assert(#VersusModeState.respawn_breeds==26)
-for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant','chaos_plague_ogryn','chaos_spawn','chaos_beast_of_nurgle','chaos_ogryn_houndmaster','chaos_daemonhost','chaos_mutator_daemonhost','renegade_captain','cultist_captain','renegade_twin_captain','renegade_twin_captain_two'})do assert(seen[name],name) end
+assert(#VersusModeState.respawn_breeds==24)
+for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant','chaos_plague_ogryn','chaos_spawn','chaos_beast_of_nurgle','chaos_ogryn_houndmaster','chaos_daemonhost','chaos_mutator_daemonhost','renegade_captain','cultist_captain'})do assert(seen[name],name) end
 ${fn('VersusModeState.available_spawn_choices')}
-assert(#VersusModeState.available_spawn_choices()==26)
-VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==25)
+assert(#VersusModeState.available_spawn_choices()==24)
+VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==23)
 `);
 if(!/local MAX_CARDS = 28/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 28 cards');
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));
