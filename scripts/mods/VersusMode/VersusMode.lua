@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.44"
+mod.version = "3.0.45"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -23494,7 +23494,8 @@ mod:hook(BtShootAction, "_update_shooting", function(func, self, unit, t, scratc
         and attack.single_shoot_cycle
         and fired_last_shot then
         if VersusModeState.shotgun_breeds[state.breed.name] then
-            state.shotgun_fire_cooldown_until = t + 0.5
+            local cooldown = state.breed.name == "renegade_plasma_gunner" and 1 or 0.5
+            state.shotgun_fire_cooldown_until = t + cooldown
         end
         state.command_action_complete = true
         state.attack_min_until = 0

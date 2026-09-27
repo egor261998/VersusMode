@@ -1,4 +1,4 @@
-Versus Mode 3.0.44
+Versus Mode 3.0.45
 ==================
 
 Versus Mode lets players join the Heretic Forces and directly control
@@ -32,7 +32,7 @@ Requirements
 - Darktide Mod Loader and Darktide Mod Framework.
 - SoloPlay for locally hosted sessions.
 - Realms for LAN sessions with remote human Heretic players.
-- The host and every participating Realms client must run Versus Mode 3.0.44.
+- The host and every participating Realms client must run Versus Mode 3.0.45.
 
 Realms itself is not modified. Versus Mode uses its supported mod-networking
 bridge and remains host-authoritative.
@@ -41,7 +41,7 @@ bridge and remains host-authoritative.
 Installation
 ------------
 
-1. Extract `VersusMode-3.0.44.zip` into the Darktide `mods` directory.
+1. Extract `VersusMode-3.0.45.zip` into the Darktide `mods` directory.
 2. Confirm this exact path exists:
    `mods/VersusMode/VersusMode.mod`
 3. Add `VersusMode` once to `mods/mod_load_order.txt` after DMF-managed
@@ -150,7 +150,7 @@ Recommended compatibility checks
 10. For each Gunner, fire in Target Lock and free aim, strafe both directions
     during a volley, then use its melee actions. Check that shots follow the
     crosshair and commands work in cover.
-11. Repeat Gunner possession with a matching 3.0.44 Realms client and review
+11. Repeat Gunner possession with a matching 3.0.45 Realms client and review
     both host and client logs for selector, animation, or RPC errors.
 12. Change Specialist camera distance, horizontal offset, and height. Compare
     a Specialist and a controlled Elite in third person; both should respond
@@ -180,7 +180,7 @@ Reporting problems
 When reporting an issue, include both host and client console logs when
 available, the map, controlled breed, action being used, whether Target Lock was
 active, and clear reproduction steps. Confirm every machine reports Versus Mode
-3.0.44 before comparing multiplayer behavior.
+3.0.45 before comparing multiplayer behavior.
 
 Local changes: expanded Heretic roster and nearest target
 -----------------------------------------------------------
@@ -251,7 +251,7 @@ The existing NEXT REINFORCEMENT HUD uses this same authoritative assignment.
 An unconfirmed request shows an error after five seconds and allows retry.
 All module and asset paths remain relative; no machine-specific paths are used.
 
-Built-in night vision in 3.0.44
+Built-in night vision in 3.0.45
 -------------------------------
 Night vision runs only on the Heretic side and needs no extra mod.
 Optics/ramp adapted from Wobin's Preysight: https://github.com/Wobin/Preysight
@@ -265,15 +265,15 @@ Visual brightness still needs validation on dark and bright maps in-game.
 The camera light follows the possessed enemy, not the hidden player shell.
 Preysight and SimpleAssets must not be enabled for this setup.
 
-Per-player Heretic cooldowns (3.0.44)
+Per-player Heretic cooldowns (3.0.45)
 ----------------------------------
 Death locks that enemy breed for 60 seconds for its controller. Other players
 keep their own timers; variants of the same breed share its cooldown.
 Picker cards update the remaining seconds live and unlock automatically.
 The existing general respawn delay still applies. The host enforces both
-selection and spawn checks; install 3.0.44 on the host and all clients.
+selection and spawn checks; install 3.0.45 on the host and all clients.
 
-Psykhanium practice (3.0.44)
+Psykhanium practice (3.0.45)
 --------------------------
 Enable Versus Mode and enter the local Psykhanium. Use the configured Heretic
 roster-menu or enemy-selection key to open cards. Click an enemy to spawn and
@@ -282,7 +282,7 @@ or click Return to Operative. Esc only closes the menu. The possession key also
 releases control. No Realms role assignment is needed; remote clients are not
 supported by this local training path. Regular matches keep their cooldowns.
 
-Heretic team HUD (3.0.44)
+Heretic team HUD (3.0.45)
 ------------------------
 A right-side panel displays human Heretic players, their enemy portraits and
 health, or respawn countdowns. Host snapshots update twice per second.
@@ -296,7 +296,7 @@ They cover cooldowns, packet age, exact spawning, training rollback, night fade,
 HUD cache frequency and controlled Scab/Dreg crosshair shot arguments.
 These checks do not replace host/client testing inside Darktide.
 
-Melee aiming guide (3.0.44)
+Melee aiming guide (3.0.45)
 --------------------------
 Settings > Versus Mode > Melee aiming guide has 23 independent enemy checkboxes,
 all ON by default. Includes melee elites/bosses and kicks/bashes on ranged enemies.
@@ -309,7 +309,7 @@ Ranged commands, menus and release of possession hide the marker.
 Weapon sweeps, moving targets and network delay can change the actual impact;
 this guide does not predict the complete animation or guarantee damage.
 
-Gunner burst counter (3.0.44)
+Gunner burst counter (3.0.45)
 ----------------------------
 Scab/Dreg Gunners and Reapers show remaining/total shots in the native burst.
 Before the first burst is prepared, the display is unknown (-- / --).
@@ -323,7 +323,7 @@ The next burst rolls its native shot count; no artificial magazine is added.
 The host supplies client counters through the existing 0.15-second status updates.
 Night vision remains key-operated; its 50% default now means half the full effect.
 
-Hound charge lock (3.0.44)
+Hound charge lock (3.0.45)
 -------------------------
 In charge-based trajectory mode, hold Secondary (normally RMB) to grow the arc.
 Press Primary (normally LMB) while holding Secondary to freeze the current charge.
@@ -332,7 +332,7 @@ Repeated Primary clicks keep the same charge. A new preview or cancellation rese
 The HUD shows LOCKED and the charge percentage. Camera-pitch mode is unchanged.
 Client jumps send the same existing charge-fraction field to the host.
 
-Committed grenade trajectory (3.0.44)
+Committed grenade trajectory (3.0.45)
 --------------------------------------
 During a throw, the arc and impact marker use the committed launch solution.
 Camera movement cannot replace that path with the next throw's preview.
@@ -340,28 +340,28 @@ Clients hold their current preview while awaiting the host, then display the
 host's committed points. An unconfirmed request expires after two seconds.
 After the throw action ends, live aiming resumes for the next grenade.
 
-Localization (3.0.44)
+Localization (3.0.45)
 ---------------------
 All 634 localization keys include Russian and English. Literal percent signs in
 night-vision settings are escaped for DMF's string.format-based localization.
 npm test also checks duplicate keys, settings labels, literal localization calls,
 matching format arguments across languages, and actual Lua string formatting.
 
-Host Trapper/Sniper shot cooldown (3.0.44)
+Host Trapper/Sniper shot cooldown (3.0.45)
 -----------------------------------------
 The host balance settings include a shared 3-30 second shot cooldown slider.
 Default: 3 seconds. Applies to Sniper, Trapper and Sniper Netter controls.
 Changing it recalculates deadlines from the last shot and syncs client HUDs.
 Client preferences do not change the authoritative cooldown.
 
-Scab and Dreg Shotgunners (3.0.44)
+Scab and Dreg Shotgunners (3.0.45)
 ---------------------------------
 Both Shotgunners are selectable with the shared per-breed respawn cooldown.
 Primary fires a native shotgun cycle; Heavy uses the native melee strike.
 Free aim uses the camera point and matching weapon animation, retaining pellet spread.
 Target lock uses native aiming. Each has a melee guide visibility checkbox.
 
-Enemy portrait fallbacks (3.0.44)
+Enemy portrait fallbacks (3.0.45)
 --------------------------------
 Seven native portrait materials are referenced by the game source.
 Other breeds use original cached 32x32 pixel artwork built from UI rectangles.

@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.45 - Plasma shot cooldown (2026-09-27)
+-----------------------------------------
+
+- Set the controlled plasma gunner cooldown after firing to one second.
+- Keep both shotgun cooldowns at half a second.
+
 3.0.44 - Cached picker layout compatibility (2026-09-27)
 ---------------------------------------------------------
 
