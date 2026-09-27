@@ -73,11 +73,17 @@ lighting.update = function(world, position, strength)
     -- Opposite directions cover every normal. Bound the combined diffuse
     -- contribution: |nx| + |ny| + |nz| <= sqrt(3) for a unit normal.
     local intensity = strength / math.sqrt(3)
+    local x, y, z = position[1], position[2], position[3]
+    local moved = rig.x ~= x or rig.y ~= y or rig.z ~= z
+    local changed = rig.intensity ~= intensity
+    if not moved and not changed then return end
     for _, light in ipairs(rig.lights) do
-        Unit.set_local_position(light.unit, 1, position)
-        Light.set_intensity(light.source, intensity)
+        if moved then Unit.set_local_position(light.unit, 1, position) end
+        if changed then Light.set_intensity(light.source, intensity) end
         World.update_unit(world, light.unit)
     end
+    -- Own only scalar coordinates, never retain an engine-temporary vector.
+    rig.x, rig.y, rig.z, rig.intensity = x, y, z, intensity
 end
 
 return lighting

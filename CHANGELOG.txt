@@ -1,3 +1,8 @@
+3.1.1
+- Reduce temporary allocations in protected extension queries and redundant night-vision light updates.
+- Move the Heretic team HUD upward to clear the weapon interface.
+- Restore the stand-up animation when controlled twin-captain/lieutenant shield recharge is interrupted.
+
 3.1.0
 - Show Operative health and toughness above visible players while controlling a Heretic; HUD toggle enabled by default.
 - Show bonus toughness in gold with its additional amount; use native replicated health/toughness values.

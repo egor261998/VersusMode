@@ -30,7 +30,7 @@ HudElementVersusTeam.init = function(self, parent, draw_layer, start_scale)
         scenegraph_definition = {
             screen = { scale = "fit", size = { 1920, 1080 }, position = { 0, 0, 0 } },
             team = { parent = "screen", horizontal_alignment = "right", vertical_alignment = "bottom",
-                size = { 400, 116 }, position = { -25, -60, 80 } },
+                size = { 400, 116 }, position = { -25, -240, 80 } },
         },
         widget_definitions = {},
     })

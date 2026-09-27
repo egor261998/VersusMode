@@ -135,6 +135,44 @@ for _,a in ipairs(attempts)do assert(a.max==50)end
 safety=false
 assert(not VersusModeState.random_safe_spawn({respawn_breed='gunner'}))
 `);
+run('Allocation-free extension queries retain lookup protection and multiple return values', `
+local VersusModeState={}
+local ALIVE=setmetatable({live=true},{__index=function(_,u)if u=='stale' then error('destroyed')end end})
+local ScriptUnit={has_extension=function(u,system)assert(u=='live');if system=='bad' then error('gone')end;return system end}
+${fn('VersusModeState.protected_unit_alive')}
+${fn('VersusModeState.protected_unit_extension')}
+${fn('VersusModeState.protected_extension_method')}
+${fn('safe_extension')}
+${fn('safe_extension_call')}
+assert(safe_extension('live','health')=='health')
+assert(safe_extension('live','bad')==nil and safe_extension('stale','health')==nil and safe_extension(nil,'health')==nil)
+assert(not safe_extension_call(nil,'foo'))
+local ext={get=function(self,a,b,c)assert(self==ext or type(self)=='table');return a,b,c end}
+local ok,a,b,c=safe_extension_call(ext,'get',1,nil,3)
+assert(ok and a==1 and b==nil and c==3)
+assert(not safe_extension_call(ext,'missing'))
+ext=setmetatable({},{__index=function()error('destroyed extension')end})
+assert(not safe_extension_call(ext,'get'))
+`);
+run('Interrupted controlled captain shield recharge exits kneel without changing native shield state', `
+local state={possessed=true,breed={name='twin'},animation={}}
+local VersusModeState={control_for_unit=function()return state end}
+local CAPTAIN_BREEDS={twin=true};local ALIVE={[1]=true};local HEALTH_ALIVE={[1]=true}
+local sent={};local function safe_anim_event(_,event)sent[#sent+1]=event end
+local function safe_extension()error('animation already supplied')end
+${fn('VersusModeState.finish_controlled_captain_kneel')}
+local board={behavior={toughness_broke=false},death={is_dead=false}}
+local data={stand_up_anim_events={'stagger_shield_break_charge_outof'}}
+VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false)
+assert(#sent==1 and sent[1]=='stagger_shield_break_charge_outof' and board.behavior.toughness_broke==false)
+VersusModeState.finish_controlled_captain_kneel(1,board,{stand_up_anim_duration=5},data,false)
+VersusModeState.finish_controlled_captain_kneel(1,board,{},data,true)
+board.death.is_dead=true;VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false);board.death.is_dead=false
+HEALTH_ALIVE[1]=false;VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false);HEALTH_ALIVE[1]=true
+state.remote_client=true;VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false);state.remote_client=nil
+state=nil;VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false)
+assert(#sent==1)
+`);
 const startAttack=fn('start_attack_burst');
 run('Manual release opens the death picker on host and client without death cooldown',`
 local now=20;local role;local choices={}
@@ -1104,25 +1142,32 @@ VersusModeState.refresh_specialist_shot_cooldown(client);assert(client.netter_fi
 local idle={};VersusModeState.refresh_specialist_shot_cooldown(idle);assert(idle.sniper_fire_cooldown_until==nil)
 `);
 run('Global night lighting covers opposing directions, reuses units and cleans up failures',`
-local world='one';local spawned,destroyed,warnings=0,0,0;local fail=false;local units={}
+local world='one';local spawned,destroyed,warnings=0,0,0;local fail=false;local units={};local moves,intensities,updates=0,0,0
 local mod={package_status=function()return 'loaded'end,warning=function()warnings=warnings+1 end}
 local function get_mod()return mod end
 local Managers={world={has_world=function()return true end,world=function()return world end}}
 local function Vector3(x,y,z)return {x,y,z}end
 local Quaternion={look=function(direction,up)assert(direction[1]*up[1]+direction[2]*up[2]+direction[3]*up[3]==0);return direction end}
 local World={spawn_unit_ex=function(w)spawned=spawned+1;local u={world=w,alive=true};units[#units+1]=u;return u end,
- destroy_unit=function(w,u)assert(u.world==w and u.alive);u.alive=false;destroyed=destroyed+1 end,update_unit=function()end}
+ destroy_unit=function(w,u)assert(u.world==w and u.alive);u.alive=false;destroyed=destroyed+1 end,update_unit=function()updates=updates+1 end}
 local Unit={alive=function(u)assert(u.world==world,'must not access destroyed world');return u.alive end,
  num_lights=function()return 1 end,num_meshes=function()return 0 end,light=function(u)return u end,
- set_local_position=function(u,_,p)u.position=p end,set_local_rotation=function(u,_,q)u.direction=q end}
+ set_local_position=function(u,_,p)moves=moves+1;u.position=p end,set_local_rotation=function(u,_,q)u.direction=q end}
 local Light={set_type=function(u,t)assert(t=='directional');if fail then error('unsupported')end;u.kind=t end,
- set_enabled=function(u,v)u.enabled=v end,set_intensity=function(u,v)u.intensity=v end,
+ set_enabled=function(u,v)u.enabled=v end,set_intensity=function(u,v)intensities=intensities+1;u.intensity=v end,
  set_casts_shadows=function(_,v)assert(v==false)end,set_volumetric_intensity=function(_,v)assert(v==0)end,
  set_spot_reflector=function()end,set_color_filter=function()end,set_correlated_color_temperature=function()end}
 local lighting=(function()${fs.readFileSync(path.join(base,'VersusMode_night_lighting.lua'),'utf8')} end)()
 lighting.update(world,Vector3(0,0,0),2);assert(spawned==6)
 local normals={};for _,u in ipairs(units)do local key=table.concat(u.direction,',');assert(not normals[key]);normals[key]=true;assert(u.enabled and u.kind=='directional')end
+moves,intensities,updates=0,0,0
+for i=1,100 do lighting.update(world,Vector3(0,0,0),2) end
+assert(moves==0 and intensities==0 and updates==0)
 for i=1,100 do lighting.update(world,Vector3(i,0,0),2) end
+assert(moves==600 and intensities==0 and updates==600)
+moves,intensities,updates=0,0,0
+lighting.update(world,Vector3(100,0,0),3)
+assert(moves==0 and intensities==6 and updates==6)
 assert(spawned==6 and destroyed==0)
 lighting.update(world,Vector3(0,0,0),0);assert(destroyed==6)
 lighting.clear();assert(destroyed==6)
@@ -1194,10 +1239,10 @@ local intensity,range;local alive=false
 local Unit={alive=function()return alive end,num_lights=function()return 1 end,light=function()return {}end,num_meshes=function()return 0 end,set_local_position=function()end,set_local_rotation=function()end}
 local World={spawn_unit_ex=function()alive=true;return 'light'end,destroy_unit=function()alive=false end,update_unit=function()end}
 local Light=setmetatable({set_intensity=function(_,v)intensity=v end,set_falloff_end=function(_,v)range=v end},{__index=function()return function()end end})
-local function Vector3()return 0 end
+local function Vector3(x,y,z)return {x or 0,y or 0,z or 0} end
 local Quaternion={look=function()return 0 end,forward=function()return 1 end};local function vector3_up()return 1 end
 Managers.world={has_world=function()return true end,world=function()return 'world'end}
-Managers.free_flight={is_in_free_flight=function()return true end,camera_position_rotation=function()return 0,0 end}
+Managers.free_flight={is_in_free_flight=function()return true end,camera_position_rotation=function()return Vector3(0,0,0),0 end}
 mod.package_status=function()return 'loaded'end
 mod._night_vision.lighting=(function()${fs.readFileSync(path.join(base,'VersusMode_night_lighting.lua'),'utf8')} end)()
 ${fn('VersusModeState.clear_night_vision')}
