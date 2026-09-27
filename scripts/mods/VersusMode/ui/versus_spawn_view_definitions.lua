@@ -53,7 +53,7 @@ for i = 1, MAX_CARDS do
     }, name, { visible = false })
 end
 for _, name in ipairs({ "cancel" }) do
-    node(name, 640, 570, 260, 60)
+    node(name, 570, 570, 400, 60)
     widgets[name] = UIWidget.create_definition({
         { pass_type = "hotspot", content_id = "hotspot" },
         { pass_type = "rect", style = { color = { 240, 50, 75, 50 } } },

@@ -25,6 +25,11 @@ VersusModeSpawnView.on_enter = function(self)
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
     widgets.cancel.content.text = mod:localize("spawn_picker_cancel")
     widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_close")
+    if mod.training_available() then
+        widgets.hint.content.text = mod:localize("training_picker_hint")
+        widgets.cancel.content.text = mod:localize("training_return")
+        widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_training_return")
+    end
     for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]
         local entry = self._choices[i]
@@ -58,6 +63,11 @@ end
 
 VersusModeSpawnView.cb_close = function(self)
     Managers.ui:close_view(self.view_name)
+end
+
+VersusModeSpawnView.cb_training_return = function(self)
+    mod.training_return()
+    self:cb_close()
 end
 
 VersusModeSpawnView._on_back_pressed = function(self)

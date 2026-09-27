@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.8"
+mod.version = "3.0.9"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -2661,7 +2661,7 @@ function VersusModeState.local_infected_view()
     local state = mod._control
 
     if state and state.possessed then
-        return state.versus_role ~= nil
+        return state.versus_role ~= nil or state.training_heretic == true
     end
 
     return VersusModeState.local_active()
@@ -10406,7 +10406,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
 
     local is_local_control = mod._control == state
     local controller_peer_id = state.controller_peer_id
-    local versus_role = state.versus_role or is_local_control and mod._versus_role_test
+    local versus_role = not state.training_heretic and (state.versus_role or is_local_control and mod._versus_role_test)
 
     if controlled_unit_dead then
         VersusModeState.record_breed_death(versus_role, state)
@@ -10522,6 +10522,13 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
 
     VersusModeState.publish_roster()
 
+    if state.training_heretic and not controlled_unit_dead and ALIVE[state.unit] then
+        local manager = Managers.state and Managers.state.minion_spawn
+        if manager and manager == state.training_spawn_manager then
+            pcall(manager.despawn_minion, manager, state.unit)
+        end
+    end
+
     if reason and is_local_control then
         VersusModeState.echo_notice(reason)
     elseif reason and controller_peer_id then
@@ -10592,7 +10599,7 @@ local function enter_camera(state)
     return active
 end
 
-local function begin_possession(unit, player, player_unit, controller_peer_id, versus_role, variant_id)
+local function begin_possession(unit, player, player_unit, controller_peer_id, versus_role, variant_id, training_heretic)
     local breed, unavailable_reason = controllable_breed(unit)
     local controlled_normal_boss = false
     local controlled_weakened_boss = false
@@ -10683,6 +10690,8 @@ local function begin_possession(unit, player, player_unit, controller_peer_id, v
         controlled_weakened_boss = controlled_weakened_boss == true,
         controller_peer_id = VersusModeState.normalize_peer_id(controller_peer_id),
         versus_role = versus_role,
+        training_heretic = training_heretic == true,
+        training_spawn_manager = training_heretic and Managers.state.minion_spawn or nil,
         variant_id = VersusModeState.valid_variant(breed.name, variant_id) and variant_id or nil,
     }
 
@@ -19453,8 +19462,54 @@ mod.clear_versus_roster = function()
     return true, mod:localize("versus_roster_restored_all")
 end
 
+function VersusModeState.training_available()
+    local game_mode = Managers.state and Managers.state.game_mode
+    return is_server() and game_mode and game_mode:game_mode_name() == "shooting_range"
+        and setting("enable_versus_mode") == true or false
+end
+
+mod.training_return = function()
+    if mod._control and mod._control.training_heretic then
+        release_possession(nil, true)
+    end
+end
+
+mod.training_available = VersusModeState.training_available
+
+function VersusModeState.training_select(entry)
+    if not VersusModeState.training_available() or not entry then return false end
+    local allowed = false
+    for _, choice in ipairs(VersusModeState.available_spawn_choices()) do
+        if choice.name == entry.name and choice.variant_id == entry.variant_id then allowed = true break end
+    end
+    if not allowed then return false end
+    local player = local_player()
+    local player_unit = player and player.player_unit
+    local manager = Managers.state.minion_spawn
+    local nav_manager = Managers.state.nav_mesh
+    local nav_world = nav_manager and nav_manager:nav_world()
+    if not player_unit or not ALIVE[player_unit] or not manager or not nav_world then return false end
+    local rotation = Unit.world_rotation(player_unit, 1)
+    local candidate = Unit.world_position(player_unit, 1) + Quaternion.forward(rotation) * 3
+    local ok, position = pcall(VersusModeState.nav_queries.position_on_mesh_guaranteed, nav_world, candidate, 5, 10)
+    if not ok or not position then return false end
+    local params = manager:request_param_table()
+    params.optional_aggro_state = "aggroed"
+    local spawned, unit = pcall(manager.spawn_minion, manager, entry.name, position, rotation, 2, params)
+    if not spawned or not unit then return false end
+    mod.training_return()
+    if begin_possession(unit, player, player_unit, nil, nil, entry.variant_id, true) then return true end
+    pcall(manager.despawn_minion, manager, unit)
+    return false
+end
+
 mod.toggle_versus_roster_menu = function(is_pressed, force_action)
     if not force_action and not configured_keybind_should_fire("infected_menu_keybind", is_pressed) then
+        return
+    end
+
+    if VersusModeState.training_available() then
+        Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
         return
     end
 
@@ -19500,6 +19555,11 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
         return
     end
 
+    if VersusModeState.training_available() then
+        Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+        return
+    end
+
     if not setting("enable_versus_mode") then
         mod:echo("Versus Mode: " .. mod:localize("versus_role_required"))
 
@@ -19530,6 +19590,7 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
 end
 
 mod.spawn_picker_cooldown = function(entry)
+    if VersusModeState.training_available() then return 0 end
     return VersusModeState.breed_cooldown(VersusModeState.local_role(), entry.name)
 end
 
@@ -19548,6 +19609,7 @@ mod.spawn_picker_choices = function()
 end
 
 mod.spawn_picker_available = function()
+    if VersusModeState.training_available() then return true end
     local role = VersusModeState.local_role()
     return setting("enable_versus_mode") and VersusModeState.spawn_selection_enabled()
         and role and role.infected_human and not role.assigned_boss_unit
@@ -19555,6 +19617,7 @@ mod.spawn_picker_available = function()
 end
 
 mod.spawn_picker_hold = function(open)
+    if VersusModeState.training_available() then return end
     local role = VersusModeState.local_role()
     if is_server() then
         if role then
@@ -19577,6 +19640,7 @@ mod.spawn_picker_matches = function(entry)
 end
 
 mod.spawn_picker_select = function(entry)
+    if VersusModeState.training_available() then return VersusModeState.training_select(entry) end
     if not entry or not mod.spawn_picker_available() or mod.spawn_picker_cooldown(entry) > 0 then
         return false
     end

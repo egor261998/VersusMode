@@ -1,4 +1,6 @@
 return {
+    training_picker_hint = { en = "Psykhanium: click to control an enemy. No respawn cooldowns. Esc closes this menu.", ru = "Псайканиум: нажми на врага, чтобы взять управление. Без КД. Esc закрывает меню." },
+    training_return = { en = "Return to Operative", ru = "Вернуться к оперативнику" },
     spawn_picker_cooldown = { en = "Cooldown: %d s", ru = "КД: %d с" },
     spawn_picker_ready = { en = "Ready", ru = "Доступен" },
     spawn_picker_pending = { en = "Applying selection: %s...", ru = "Применяется выбор: %s..." },

@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.9 — Psykhanium Heretic practice (2026-09-27)
+------------------------------------------------
+
+- In the local shooting range, roster/selection keys open the enemy cards directly.
+- Selecting a card spawns and controls that enemy without match roles or cooldowns.
+- Return to Operative restores possession state and removes the training spawn.
+- Training is restricted to the authoritative local shooting range.
+- Mocked logic checked; actual Psykhanium gameplay still needs verification.
+
 3.0.8 — Per-player Heretic respawn cooldowns (2026-09-27)
 ----------------------------------------------------------
 
