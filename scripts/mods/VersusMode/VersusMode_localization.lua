@@ -1,4 +1,5 @@
 return {
+    specialist_panel_preparation = { en = "Firing in: %.1f s", ru = "До выстрела: %.1f с" },
     sniper_shot_delay = { en = "Sniper shot preparation — Host (seconds)", ru = "Подготовка выстрела снайпера — хост (секунды)" },
     sniper_shot_delay_tooltip = { en = "Host only: 1–3 seconds from the fire command to the shot, in 0.5-second steps. Applies to all controlled Snipers, including preparation already in progress. Separate from shot cooldown; client settings are ignored.", ru = "Только хост: от 1 до 3 секунд от команды на выстрел до выстрела, шаг 0,5. Применяется ко всем снайперам под управлением игроков, включая уже начатую подготовку. Не меняет КД между выстрелами; настройка клиента игнорируется." },
     death_picker_hint = { en = "Choose your next Heretic. Respawn waits for your choice; enemies on cooldown unlock when their timer expires.", ru = "Выбери следующего еретика. Возрождение ждёт выбора; враги на КД станут доступны по окончании таймера." },

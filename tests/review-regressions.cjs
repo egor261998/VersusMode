@@ -37,29 +37,44 @@ local create=(function() ${fs.readFileSync(path.join(base,'VersusMode_boss_offer
 local t=0;local enabled=true;local capacity=true;local taken=0;local sent={}
 local a={};local b={};local roles={a,b};local e={unit=1,breed={name='boss'},queued_at=0}
 local pending={[1]=e};local alive=true
-local env={now=function()return t end,host=function()return true end,enabled=function()return enabled end,
+local env={random=function()return 1 end,now=function()return t end,host=function()return true end,enabled=function()return enabled end,
  local_eligible=function()return true end,alive=function()return alive end,roles=function()return roles end,
  role_eligible=function(r)return r==a or r==b end,boss_eligible=function()return alive end,
  capacity=function()return capacity end,send=function(r,p)sent[#sent+1]={role=r,payload=p}end,
  possess=function(entry,r)taken=taken+1;pending[entry.unit]=nil;return true end}
 local o=create(env);o:update(pending)
 assert(taken==0 and o.active)
-local first=o.active.role;local second=first==a and b or a
-assert(first.spawn_picker_until==1)
+assert(o.active.roles[a] and o.active.roles[b] and a.spawn_picker_until==1)
 local id=o.active.id
-assert(not o:answer(second,id,true) and o.active)
-assert(not o:answer(first,id,false) and taken==0)
-o:update(pending);assert(o.active.role==second)
-assert(o:answer(second,o.active.id,true) and taken==1)
-assert(not o:answer(second,id,true) and taken==1)
--- Timeout never possesses and offers the next role instead.
+assert(not o:answer({},id,true) and o.active)
+assert(not o:answer(a,id,false) and taken==0 and o.active.roles[b])
+assert(o:answer(b,id,true) and taken==1)
+assert(not o:answer(b,id,true) and taken==1)
+-- Both receive the same offer; the first valid Yes wins, regardless of role order.
+for _,winner in ipairs({a,b}) do
+ pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
+ local other=winner==a and b or a;local concurrent_id=o.active.id
+ assert(o.active.roles[winner] and o.active.roles[other])
+ local before=taken
+ assert(o:answer(winner,concurrent_id,true) and taken==before+1)
+ assert(not o:answer(other,concurrent_id,true) and taken==before+1)
+ assert(not o:answer(winner,concurrent_id,true) and taken==before+1)
+ local closed={}
+ for _,message in ipairs(sent)do
+  if message.payload.kind=='boss_offer_cancel' and message.payload.offer_id==concurrent_id then closed[message.role]=true end
+ end
+ assert(closed[a] and closed[b])
+end
+local before=taken
 pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending);t=16;o:update(pending)
-assert(o.active.role==second and taken==1)
-alive=false;assert(not o:answer(second,o.active.id,true) and taken==1)
+assert(not o.active and taken==before)
+pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
+alive=false;assert(not o:answer(b,o.active.id,true) and taken==before)
+o:update(pending);assert(not o.active)
 alive=true;pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
-capacity=false;assert(not o:answer(o.active.role,o.active.id,true) and taken==1)
+capacity=false;assert(not o:answer(a,o.active.id,true) and taken==before)
 capacity=true;pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
-enabled=false;o:update(pending);assert(not o.active and taken==1)
+enabled=false;o:update(pending);assert(not o.active and taken==before)
 -- Native popup exposes explicit Yes/No, ignores repeats and closes on expiry.
 local shown=0;local removed=0;local popup;local reply
 Managers={event={trigger=function(_,event,data,cb)
@@ -80,6 +95,54 @@ env.host=function()return true end;enabled=false;capacity=false;alive=false
 local garbage={};for i=1,100 do garbage[i]={unit=i}end
 o:update(garbage);assert(next(garbage)==nil)
 `);
+run('Boss offer chance is 25 percent per player per boss; captains and lieutenants always qualify',`
+local create=(function() ${fs.readFileSync(path.join(base,'VersusMode_boss_offers.lua'),'utf8')} end)()
+local rolls=0;local result=1;local sent=0;local host=true;local alive=true;local enabled=true;local capacity=true
+local a,b={},{};local roles={a};local pending={}
+local env={now=function()return 0 end,host=function()return host end,enabled=function()return enabled end,
+ local_eligible=function()return false end,alive=function()return alive end,roles=function()return roles end,
+ role_eligible=function()return true end,boss_eligible=function()return true end,capacity=function()return capacity end,
+ send=function(_,p)if p.kind=='boss_offer' then sent=sent+1 end end,
+ random=function(lo,hi)assert(lo==1 and hi==4);rolls=rolls+1;return result end}
+local o=create(env)
+for r=1,4 do
+ result=r;local entry={unit=r,breed={name='chaos_spawn'},queued_at=0};pending={[r]=entry}
+ local before=rolls;local messages=sent;o:update(pending)
+ assert(rolls==before+1 and (o.active~=nil)==(r==1))
+ if o.active then o:answer(a,o.active.id,false) end
+ for i=1,100 do o:update(pending) end
+ assert(rolls==before+1 and sent==messages+(r==1 and 1 or 0))
+ -- A later eligible player gets an independent roll, exactly once.
+ roles={b};o:update(pending);assert((o.active~=nil)==(r==1) and rolls==before+2)
+ if o.active then o:answer(b,o.active.id,false) end
+ o:reset();o:update(pending);assert(rolls==before+2 and not o.active)
+ roles={a}
+end
+-- Four simultaneous players: only the independent winning roll receives a popup.
+local c,d={},{};roles={a,b,c,d};local sequence={1,2,3,4};local index=0
+env.random=function(lo,hi)assert(lo==1 and hi==4);index=index+1;return sequence[index] end
+pending={[1]={unit=1,breed={name='chaos_spawn'},queued_at=0}}
+o:update(pending);assert(index==4 and o.active)
+local winners=0;local winner
+for role in pairs(o.active.roles)do winners=winners+1;winner=role end
+assert(winners==1);o:answer(winner,o.active.id,false)
+for i=1,100 do o:update(pending) end
+assert(index==4 and not o.active)
+env.random=function(lo,hi)assert(lo==1 and hi==4);rolls=rolls+1;return result end
+roles={a,b};result=4
+for _,breed in ipairs({'renegade_captain','cultist_captain','renegade_twin_captain','renegade_twin_captain_two'})do
+ local before=rolls;pending={[1]={unit=1,breed={name=breed},queued_at=0}}
+ o:update(pending);assert(o.active and o.active.roles[a] and o.active.roles[b] and rolls==before)
+ o:answer(a,o.active.id,false);assert(o.active.roles[b]);o:answer(b,o.active.id,false)
+end
+roles={a}
+pending={[1]={unit=1,breed={name='chaos_spawn'},queued_at=0}}
+local before=rolls;host=false;o:update(pending);assert(rolls==before)
+host=true;enabled=false;o:update(pending);assert(rolls==before)
+enabled=true;capacity=false;o:update(pending);assert(rolls==before)
+capacity=true;o:update(pending);assert(rolls==before+1 and not o.active)
+alive=false;o:update(pending);assert(next(pending)==nil)
+`);
 run('Havoc lieutenant inventory resolves consistently without mutating native templates',`
 local hook;local enabled=true
 local mod={hook=function(_,_,_,f)hook=f end};local MinionVisualLoadout={}
@@ -93,6 +156,35 @@ end
 assert(hook(resolve,inventory,'dust',nil,'renegade_captain',123)=='dust')
 enabled=false;assert(hook(resolve,inventory,'dust',nil,'renegade_twin_captain',123)=='dust')
 assert(inventory.default~=inventory.havoc_twin_visual_loadout)
+`);
+const sniperClockDeclarations=ast.body.filter(n=>n.type==='FunctionDeclaration'&&n.identifier&&['gameplay_time','VersusModeState.sniper_preparation_remaining'].includes(id(n.identifier))).map(n=>source.slice(...n.range)).join('\n');
+run('Sniper HUD clock resolves locally in production declaration order',`
+local SNIPER_BREED_NAME='sniper'
+local VersusModeState={sniper_shot_delay=function()return 1 end}
+Managers={time={_timers={},has_timer=function()return true end,time=function()return 10 end}}
+${sniperClockDeclarations}
+assert(VersusModeState.sniper_preparation_remaining({breed={name='sniper'},attack_deadline=12,sniper_shot_started_at=10})==1)
+assert(VersusModeState.sniper_preparation_remaining({breed={name='sniper'},remote_client=true,sniper_preparation_until=11})==1)
+`);
+run('Sniper HUD preparation counts down for host and client separately from cooldown',`
+local t=10;local function gameplay_time()return t end
+local SNIPER_BREED_NAME='sniper';local NETTER_BREED_NAME='netter'
+local VersusModeState={sniper_shot_delay=function()return 1.5 end}
+local mod={localize=function(_,key,value)return key,value end}
+${fn('VersusModeState.sniper_preparation_remaining')}
+${fn('VersusModeState.specialist_panel_cooldown')}
+local state={breed={name='sniper'},attack_deadline=20,sniper_shot_started_at=10}
+assert(VersusModeState.sniper_preparation_remaining(state)==1.5)
+assert(VersusModeState.specialist_panel_cooldown(state)=='specialist_panel_preparation')
+t=11;assert(VersusModeState.sniper_preparation_remaining(state)==0.5)
+state.sniper_shot_fired=true;state.sniper_fire_cooldown_until=14
+assert(VersusModeState.specialist_panel_cooldown(state)=='specialist_panel_cooldown')
+local client={breed={name='sniper'},remote_client=true,sniper_preparation_until=12}
+assert(VersusModeState.sniper_preparation_remaining(client)==1)
+t=12;assert(VersusModeState.specialist_panel_cooldown(client)=='specialist_panel_ready')
+state.attack_deadline=nil;state.sniper_shot_fired=nil
+assert(VersusModeState.sniper_preparation_remaining(state)==0)
+assert(VersusModeState.sniper_preparation_remaining(nil)==0)
 `);
 run('Host sniper preparation range and half-second steps',`
 local value;local function setting()return value end;local VersusModeState={}

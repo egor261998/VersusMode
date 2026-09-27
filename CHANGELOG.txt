@@ -1,3 +1,9 @@
+3.0.62
+- Roll boss takeover offers independently for each eligible Heretic: 25%, or 100% for Captains and Havoc Lieutenants.
+- Offer the same boss to multiple players; the first valid host-processed acceptance wins and closes the other popups.
+- Keep one roll per player per boss, including failed rolls and declined offers.
+- Show Sniper shot preparation countdown in the lower-left HUD and fix its Lua clock scope crash.
+
 3.0.61
 - Add host-authoritative Sniper preparation slider: 1–3 seconds, step 0.5, default 1.
 - Apply changes to preparation in progress for all controlled Snipers.
