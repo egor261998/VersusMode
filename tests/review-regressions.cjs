@@ -94,10 +94,19 @@ assert(hook(resolve,inventory,'dust',nil,'renegade_captain',123)=='dust')
 enabled=false;assert(hook(resolve,inventory,'dust',nil,'renegade_twin_captain',123)=='dust')
 assert(inventory.default~=inventory.havoc_twin_visual_loadout)
 `);
+run('Host sniper preparation range and half-second steps',`
+local value;local function setting()return value end;local VersusModeState={}
+${fn('VersusModeState.sniper_shot_delay')}
+assert(VersusModeState.sniper_shot_delay()==1)
+for _,v in ipairs({1,1.5,2,2.5,3})do value=v;assert(VersusModeState.sniper_shot_delay()==v)end
+value=0/0;assert(VersusModeState.sniper_shot_delay()==1)
+value=-5;assert(VersusModeState.sniper_shot_delay()==1)
+value=20;assert(VersusModeState.sniper_shot_delay()==3)
+`);
 run('Controlled sniper waits one second after fire command',`
 local hook;local BtSniperShootAction={};local SNIPER_BREED_NAME='sniper'
-local state={unit=1,breed={name='sniper'},attack_deadline=30,requested_attack={},sniper_shot_ready_at=11}
-local VersusModeState={control_for_unit=function()return state end}
+local state={unit=1,breed={name='sniper'},attack_deadline=30,requested_attack={},sniper_shot_ready_at=11,sniper_shot_started_at=10}
+local VersusModeState={control_for_unit=function()return state end,sniper_shot_delay=function()return 1 end}
 local mod={hook=function(_,_,_,f)hook=f end}
 local function update_controlled_sniper_aim()return true end
 ${source.slice(source.indexOf('mod:hook(BtSniperShootAction, "_update_aiming"'),source.indexOf('mod:hook(BtSniperShootAction, "enter"'))}
@@ -246,7 +255,7 @@ view._selection_submitted=true;view:cb_group('bosses');assert(view._choices[1]==
 `);
 run('Sniper requires aim on the authoritative command path',`
 local SNIPER_BREED_NAME='renegade_sniper';local status;local starts=0
-local VersusModeState={gunner_reloading=function()return false end,echo_localized=function()end}
+local VersusModeState={sniper_shot_delay=function()return 1 end,gunner_reloading=function()return false end,echo_localized=function()end}
 local Specialist={resolve_immediate_casual_primary=function(_,a)return a end,request_beast_spit_out=function()return false end}
 local mod={localize=function(_,k)return k end}
 local function control_input_ui_gated()return false end

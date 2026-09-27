@@ -1,3 +1,8 @@
+3.0.61
+- Add host-authoritative Sniper preparation slider: 1–3 seconds, step 0.5, default 1.
+- Apply changes to preparation in progress for all controlled Snipers.
+- Remove the Sniper firing chat notice; keep shot cooldown separate.
+
 3.0.60
 - Add a one-second preparation before controlled Sniper shots; keep shot cooldown separate.
 - Bound imported portraits to 2048 rectangles while retaining the 96-pixel grid.

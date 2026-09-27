@@ -1,4 +1,6 @@
 return {
+    sniper_shot_delay = { en = "Sniper shot preparation — Host (seconds)", ru = "Подготовка выстрела снайпера — хост (секунды)" },
+    sniper_shot_delay_tooltip = { en = "Host only: 1–3 seconds from the fire command to the shot, in 0.5-second steps. Applies to all controlled Snipers, including preparation already in progress. Separate from shot cooldown; client settings are ignored.", ru = "Только хост: от 1 до 3 секунд от команды на выстрел до выстрела, шаг 0,5. Применяется ко всем снайперам под управлением игроков, включая уже начатую подготовку. Не меняет КД между выстрелами; настройка клиента игнорируется." },
     death_picker_hint = { en = "Choose your next Heretic. Respawn waits for your choice; enemies on cooldown unlock when their timer expires.", ru = "Выбери следующего еретика. Возрождение ждёт выбора; враги на КД станут доступны по окончании таймера." },
     hud_boss_takeover_only = { en = "Bosses can only be taken over after they appear in the mission", ru = "Боссом можно управлять только через перехват после его появления в миссии" },
     spawn_group_bosses = { en = "Bosses", ru = "Боссы" },
