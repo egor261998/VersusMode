@@ -38,6 +38,9 @@ end
 
 HudElementVersusTeam.update = function(self, dt, t, ui_renderer, render_settings, input_service)
     HudElementVersusTeam.super.update(self, dt, t, ui_renderer, render_settings, input_service)
+    self._refresh_in = (self._refresh_in or 0) - dt
+    if self._refresh_in > 0 then return end
+    self._refresh_in = 0.1
     local rows = mod.heretic_team_hud_data()
     local hidden = Managers.ui and Managers.ui:has_active_view()
     for i = 1, math.max(#rows, #self._team_rows) do

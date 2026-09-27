@@ -1,0 +1,1 @@
+{"name":"versusmode-checks","private":true,"scripts":{"test":"node tests/cooldowns.cjs && node tests/review-regressions.cjs"},"devDependencies":{"fengari":"0.1.4","luaparse":"0.3.1"}}

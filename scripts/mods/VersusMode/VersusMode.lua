@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.11"
+mod.version = "3.0.12"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -3329,14 +3329,39 @@ function VersusModeState.available_spawn_choices()
     return choices
 end
 
+function VersusModeState.cooldown_store(role)
+    if not role then return {} end
+    if is_server() and role.infected_unique_id then
+        mod._match_breed_cooldowns = mod._match_breed_cooldowns or {}
+        role.cooldown_player_key = role.cooldown_player_key
+            or VersusModeState.player_account_id(role.infected_player)
+            or tostring(role.infected_unique_id)
+        local key = role.cooldown_player_key
+        mod._match_breed_cooldowns[key] = mod._match_breed_cooldowns[key] or role.breed_cooldowns or {}
+        role.breed_cooldowns = mod._match_breed_cooldowns[key]
+    end
+    return role.breed_cooldowns or {}
+end
+
 function VersusModeState.breed_cooldown(role, breed_name)
-    local until_t = role and role.breed_cooldowns and role.breed_cooldowns[breed_name]
+    local until_t = VersusModeState.cooldown_store(role)[breed_name]
     return math_max(0, (until_t or 0) - gameplay_time())
+end
+
+function VersusModeState.respawn_remaining(role)
+    return math_max(0, (role.respawn_ready_at or math.huge) - gameplay_time(),
+        VersusModeState.breed_cooldown(role, role.respawn_breed))
+end
+
+function VersusModeState.snapshot_age(sent_at)
+    -- Gameplay timers are synchronized by the game's AdaptiveClockHandlerClient.
+    if type(sent_at) ~= "number" or sent_at ~= sent_at or math.abs(sent_at) == math.huge then return 0 end
+    return math_max(0, gameplay_time() - sent_at)
 end
 
 function VersusModeState.breed_cooldown_payload(role)
     local remaining = {}
-    for name in pairs(role.breed_cooldowns or {}) do
+    for name in pairs(VersusModeState.cooldown_store(role)) do
         local seconds = VersusModeState.breed_cooldown(role, name)
         if seconds > 0 then remaining[name] = seconds end
     end
@@ -3346,17 +3371,17 @@ end
 function VersusModeState.record_breed_death(role, state)
     if is_server() and role and role.infected_human and state.breed then
         role.breed_cooldowns = role.breed_cooldowns or {}
-        role.breed_cooldowns[state.breed.name] = gameplay_time() + 60
+        VersusModeState.cooldown_store(role)[state.breed.name] = gameplay_time() + 60
     end
 end
 
-function VersusModeState.apply_breed_cooldowns(role, remaining)
+function VersusModeState.apply_breed_cooldowns(role, remaining, sent_at)
     role.breed_cooldowns = {}
     if type(remaining) == "table" then
         for name, seconds in pairs(remaining) do
             if type(name) == "string" and type(seconds) == "number"
                 and seconds > 0 and seconds <= 60 then
-                role.breed_cooldowns[name] = gameplay_time() + seconds
+                role.breed_cooldowns[name] = gameplay_time() + math_max(0, seconds - VersusModeState.snapshot_age(sent_at))
             end
         end
     end
@@ -4194,6 +4219,7 @@ end
 
 function VersusModeState.roster_payload()
     local payload = {
+        sent_at = gameplay_time(),
         revision = mod._versus_roster_revision or 0,
         automatic_respawn_enabled = VersusModeState.automatic_respawn_enabled(),
         controlled_traversal_enabled = VersusModeState.controlled_traversal_enabled(),
@@ -4238,6 +4264,7 @@ function VersusModeState.roster_payload()
 end
 
 function VersusModeState.publish_roster(recipient)
+    mod._team_hud_host_cache = nil
     local bridge = mod._realms_compat
 
     if not is_server() or not bridge or not bridge.is_host() or not bridge.available() then
@@ -4341,7 +4368,7 @@ function VersusModeState.apply_replicated_roster(payload)
 
         role.replicated_token = token
 
-        VersusModeState.apply_breed_cooldowns(role, entry.breed_cooldowns)
+        VersusModeState.apply_breed_cooldowns(role, entry.breed_cooldowns, payload.sent_at)
 
         role.controlled_unit_id = type(entry.controlled_unit_id) == "number"
             and entry.controlled_unit_id
@@ -4356,7 +4383,7 @@ function VersusModeState.apply_replicated_roster(payload)
             and entry.respawn_variant
             or nil
         role.respawn_ready_at = type(entry.respawn_remaining) == "number"
-            and gameplay_time() + math_max(0, entry.respawn_remaining)
+            and gameplay_time() + math_max(0, entry.respawn_remaining - VersusModeState.snapshot_age(payload.sent_at))
             or nil
 
         VersusModeState.bind_replicated_player(role, player)
@@ -4859,7 +4886,7 @@ function VersusModeState.maintain_role(role)
         if not role.respawn_breed then
             VersusModeState.schedule_respawn(role)
         elseif not role.respawn_ready_notified
-            and gameplay_time() >= (role.respawn_ready_at or math.huge) then
+            and VersusModeState.respawn_remaining(role) <= 0 then
             role.respawn_ready_notified = true
             local random_safe = VersusModeState.random_safe_spawn_enabled()
             local automatic = random_safe and VersusModeState.automatic_respawn_enabled()
@@ -8223,7 +8250,7 @@ function VersusModeState.begin_survivor_spectating(role)
     local manual_placement_ready = role
         and role.respawn_breed
         and not VersusModeState.random_safe_spawn_enabled()
-        and gameplay_time() >= (role.respawn_ready_at or math.huge)
+        and VersusModeState.respawn_remaining(role) <= 0
 
     if not role
         or mod._control
@@ -8247,7 +8274,7 @@ function VersusModeState.update_survivor_spectating(dt)
     local manual_placement_ready = role
         and role.respawn_breed
         and not VersusModeState.random_safe_spawn_enabled()
-        and gameplay_time() >= (role.respawn_ready_at or math.huge)
+        and VersusModeState.respawn_remaining(role) <= 0
 
     if not role
         or not VersusModeState.local_active()
@@ -10525,7 +10552,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
 
     VersusModeState.publish_roster()
 
-    if state.training_heretic and not controlled_unit_dead and ALIVE[state.unit] then
+    if state.training_heretic and not state.keep_training_unit and not controlled_unit_dead and ALIVE[state.unit] then
         local manager = Managers.state and Managers.state.minion_spawn
         if manager and manager == state.training_spawn_manager then
             pcall(manager.despawn_minion, manager, state.unit)
@@ -16563,8 +16590,7 @@ function VersusModeState.try_respawn(role, automatic)
         return false
     end
 
-    local remaining = math_max((role.respawn_ready_at or math.huge) - gameplay_time(),
-        VersusModeState.breed_cooldown(role, role.respawn_breed))
+    local remaining = VersusModeState.respawn_remaining(role)
 
     if remaining > 0 then
         VersusModeState.echo_localized(
@@ -16606,7 +16632,7 @@ function VersusModeState.try_respawn(role, automatic)
 
     param_table.optional_aggro_state = "aggroed"
     local spawn_ok, spawned_unit = pcall(
-        minion_spawn_manager.spawn_minion,
+        VersusModeState.spawn_exact_minion,
         minion_spawn_manager,
         breed_name,
         spawn_position,
@@ -16884,8 +16910,7 @@ function VersusModeState.try_remote_respawn(peer_id, payload, automatic)
         VersusModeState.schedule_respawn(role)
     end
 
-    local remaining = math_max((role.respawn_ready_at or math.huge) - t,
-        VersusModeState.breed_cooldown(role, role.respawn_breed))
+    local remaining = VersusModeState.respawn_remaining(role)
 
     if remaining > 0 then
         if not automatic then
@@ -16929,7 +16954,7 @@ function VersusModeState.try_remote_respawn(peer_id, payload, automatic)
 
     param_table.optional_aggro_state = "aggroed"
     local spawn_ok, spawned_unit = pcall(
-        minion_spawn_manager.spawn_minion,
+        VersusModeState.spawn_exact_minion,
         minion_spawn_manager,
         breed_name,
         spawn_position,
@@ -17035,7 +17060,7 @@ function VersusModeState.try_bot_respawn(role)
 
     param_table.optional_aggro_state = "aggroed"
     local spawn_ok, spawned_unit = pcall(
-        minion_spawn_manager.spawn_minion,
+        VersusModeState.spawn_exact_minion,
         minion_spawn_manager,
         breed_name,
         spawn_position,
@@ -19465,6 +19490,34 @@ mod.clear_versus_roster = function()
     return true, mod:localize("versus_roster_restored_all")
 end
 
+-- Consume the override only for this explicit spawn, not for nested/native spawns.
+mod:hook_require("scripts/managers/minion/minion_spawn_manager", function(manager_class)
+    mod:hook(manager_class, "replacement_breed", function(func, self, breed_name)
+        local context = mod._exact_spawn_context
+        if context and context.manager == self and context.breed == breed_name and not context.consumed then
+            context.consumed = true
+            return nil
+        end
+        return func(self, breed_name)
+    end)
+end)
+
+function VersusModeState.spawn_exact_minion(manager, breed_name, position, rotation, side, params)
+    local previous = mod._exact_spawn_context
+    mod._exact_spawn_context = { manager = manager, breed = breed_name }
+    local ok, unit = pcall(manager.spawn_minion, manager, breed_name, position, rotation, side, params)
+    mod._exact_spawn_context = previous
+    if not ok then error(unit) end
+    if not unit or not ALIVE[unit] then return nil end
+    local data = safe_extension(unit, "unit_data_system")
+    local breed_ok, breed = safe_extension_call(data, "breed")
+    if not breed_ok or not breed or breed.name ~= breed_name then
+        pcall(manager.despawn_minion, manager, unit)
+        error("Versus spawn returned a different or unavailable breed: " .. tostring(breed_name))
+    end
+    return unit
+end
+
 function VersusModeState.training_available()
     local game_mode = Managers.state and Managers.state.game_mode
     return is_server() and game_mode and game_mode:game_mode_name() == "shooting_range"
@@ -19493,16 +19546,63 @@ function VersusModeState.training_select(entry)
     local nav_world = nav_manager and nav_manager:nav_world()
     if not player_unit or not ALIVE[player_unit] or not manager or not nav_world then return false end
     local rotation = Unit.world_rotation(player_unit, 1)
-    local candidate = Unit.world_position(player_unit, 1) + Quaternion.forward(rotation) * 3
-    local ok, position = pcall(VersusModeState.nav_queries.position_on_mesh_guaranteed, nav_world, candidate, 5, 10)
-    if not ok or not position then return false end
+    local origin = Unit.world_position(player_unit, 1)
+    local physics = VersusModeState.physics_world()
+    if not physics then return false end
+    local position
+    for _, direction in ipairs({ Quaternion.forward(rotation), -Quaternion.forward(rotation),
+        Quaternion.right(rotation), -Quaternion.right(rotation) }) do
+        local candidate = origin + direction * 3
+        local ok, projected = pcall(VersusModeState.nav_queries.position_on_mesh_guaranteed, nav_world, candidate, 2, 2)
+        if ok and projected then
+            local delta = projected - origin
+            local distance = Vector3.length(delta)
+            local ray_ok, blocked = pcall(PhysicsWorld.raycast, physics, origin + vector3_up() * 0.5,
+                distance > 0 and delta / distance or direction, distance, "any", "types", "both", "collision_filter", "filter_minion_mover")
+            local room_ok, overhead = pcall(PhysicsWorld.raycast, physics, projected + vector3_up() * 0.15,
+                vector3_up(), VersusModeState.spawn_headroom(entry.name), "any", "types", "both", "collision_filter", "filter_minion_mover")
+            if ray_ok and not blocked and room_ok and not overhead then position = projected break end
+        end
+    end
+    if not position then return false end
     local params = manager:request_param_table()
     params.optional_aggro_state = "aggroed"
-    local spawned, unit = pcall(manager.spawn_minion, manager, entry.name, position, rotation, 2, params)
+    local spawned, unit = pcall(VersusModeState.spawn_exact_minion, manager, entry.name, position, rotation, 2, params)
     if not spawned or not unit then return false end
-    mod.training_return()
-    if begin_possession(unit, player, player_unit, nil, nil, entry.variant_id, true) then return true end
+    local breed = controllable_breed(unit)
+    if not breed or not safe_extension(unit, "behavior_system") or not safe_extension(unit, "navigation_system")
+        or not safe_extension(unit, "locomotion_system") or not safe_extension(unit, "perception_system") then
+        pcall(manager.despawn_minion, manager, unit)
+        return false
+    end
+    local previous = mod._control
+    if previous and not previous.training_heretic then
+        pcall(manager.despawn_minion, manager, unit)
+        return false
+    end
+    if previous then
+        -- Preserve the old unit until the new possession succeeds.
+        previous.keep_training_unit = true
+        release_possession(nil, true)
+        previous.keep_training_unit = nil
+    end
+    local ok, possessed = pcall(begin_possession, unit, player, player_unit, nil, nil, entry.variant_id, true)
+    if ok and possessed then
+        if previous and ALIVE[previous.unit] then pcall(manager.despawn_minion, manager, previous.unit) end
+        return true
+    end
+    if mod._control and mod._control.unit == unit then
+        pcall(release_possession, nil, true)
+    end
     pcall(manager.despawn_minion, manager, unit)
+    if previous and ALIVE[previous.unit] and HEALTH_ALIVE[previous.unit] then
+        local restored, result = pcall(begin_possession, previous.unit, player, player_unit, nil, nil, previous.variant_id, true)
+        if not restored or not result then
+            if mod._control and mod._control.unit == previous.unit then pcall(release_possession, nil, true) end
+            pcall(manager.despawn_minion, manager, previous.unit)
+            mod:warning("Versus Mode: training possession rollback failed; returned to Operative.")
+        end
+    end
     return false
 end
 
@@ -19690,8 +19790,7 @@ function VersusModeState.hud_data()
     if role and VersusModeState.local_active() then
         local breed_name = role.respawn_breed
         local breed_label = VersusModeState.respawn_label(breed_name, role.respawn_variant)
-        local remaining = breed_name and math_max(VersusModeState.breed_cooldown(role, breed_name),
-            (role.respawn_ready_at or math.huge) - gameplay_time()) or math.huge
+        local remaining = breed_name and VersusModeState.respawn_remaining(role) or math.huge
         local ready = breed_name and remaining <= 0
         local random_safe = VersusModeState.random_safe_spawn_enabled()
         local automatic = random_safe and VersusModeState.automatic_respawn_enabled()
@@ -20704,17 +20803,23 @@ end
 
 function VersusModeState.update_night_vision(dt)
     local vision = mod._night_vision
-    vision.optics.set_target(VersusModeState.night_vision_active() and 1 or 0)
+    local flight = Managers.free_flight
+    local camera_active = flight and flight:is_in_free_flight()
+    vision.optics.set_target(VersusModeState.night_vision_active() and camera_active and 1 or 0)
     vision.optics.update(dt or 0)
     local worlds = Managers.world
     local world = worlds and worlds:has_world("level_world") and worlds:world("level_world")
-    local flight = Managers.free_flight
     local strength = vision.optics.weight()
-    if not world
-        or not VersusModeState.night_vision_active()
-        or not VersusModeState.local_infected_view() or strength == 0
-        or not flight or not flight:is_in_free_flight() then
+    if not world or strength == 0 then
         VersusModeState.clear_night_vision()
+        return
+    end
+    if not camera_active then
+        -- Camera has returned to the Operative: fade optics without retaining a world light.
+        local light = mod._night_vision_light
+        mod._night_vision_light = nil
+        if light and light.world == world and Unit.alive(light.unit) then World.destroy_unit(world, light.unit) end
+        vision.optics.set_target(0)
         return
     end
     local ok, position, rotation = pcall(flight.camera_position_rotation, flight, "global")
@@ -20775,13 +20880,21 @@ function VersusModeState.team_hud_snapshot()
                 alive = alive == true,
                 health = current_ok and type(current) == "number" and math_max(0, current) or nil,
                 maximum = max_ok and type(maximum) == "number" and maximum > 0 and maximum or nil,
-                remaining = math_max(0, (role.respawn_ready_at or gameplay_time()) - gameplay_time(),
-                    VersusModeState.breed_cooldown(role, role.respawn_breed)),
+                remaining = role.respawn_breed and VersusModeState.respawn_remaining(role) or 0,
             }
         end
     end
     table.sort(rows, function(a, b) return a.id < b.id end)
-    return { rows = rows }
+    return { rows = rows, sent_at = gameplay_time() }
+end
+
+function VersusModeState.cached_team_hud_snapshot()
+    local cached = mod._team_hud_host_cache
+    if not cached or gameplay_time() < cached.sent_at or gameplay_time() - cached.sent_at >= 0.1 then
+        cached = VersusModeState.team_hud_snapshot()
+        mod._team_hud_host_cache = cached
+    end
+    return cached
 end
 
 function VersusModeState.receive_team_hud(payload)
@@ -20799,7 +20912,7 @@ function VersusModeState.receive_team_hud(payload)
                 alive = entry.alive == true,
                 health = finite(entry.health) and entry.health or nil,
                 maximum = finite(entry.maximum) and entry.maximum > 0 and entry.maximum or nil,
-                remaining = finite(entry.remaining) and entry.remaining or 0,
+                remaining = finite(entry.remaining) and math_max(0, entry.remaining - VersusModeState.snapshot_age(payload.sent_at)) or 0,
             }
         end
     end
@@ -20808,11 +20921,11 @@ end
 
 mod.heretic_team_hud_data = function()
     if not setting("enable_versus_mode") or VersusModeState.training_available() then return {} end
-    local snapshot = is_server() and VersusModeState.team_hud_snapshot() or mod._team_hud_snapshot
+    local snapshot = is_server() and VersusModeState.cached_team_hud_snapshot() or mod._team_hud_snapshot
     if not snapshot or snapshot.received_at and gameplay_time() - snapshot.received_at > 3 then return {} end
     local rows = {}
     for i, entry in ipairs(snapshot.rows) do
-        local remaining = math_max(0, entry.remaining - (snapshot.received_at and gameplay_time() - snapshot.received_at or 0))
+        local remaining = math_max(0, entry.remaining - (gameplay_time() - (snapshot.received_at or snapshot.sent_at)))
         rows[i] = {
             name = entry.name,
             portrait = ENEMY_PORTRAITS[entry.breed] or ENEMY_PORTRAIT_FALLBACK,
@@ -20831,7 +20944,7 @@ mod.update = function(dt)
         mod._team_hud_send_delay = (mod._team_hud_send_delay or 0) - dt
         if mod._team_hud_send_delay <= 0 then
             mod._team_hud_send_delay = 0.5
-            mod._realms_compat.send_team_hud(VersusModeState.team_hud_snapshot())
+            mod._realms_compat.send_team_hud(VersusModeState.cached_team_hud_snapshot())
         end
     end
     VersusModeState.update_night_vision(dt)
@@ -22785,6 +22898,20 @@ mod:hook(BtShootAction, "enter", function(func, self, unit, breed, blackboard, s
         self:_start_aiming(unit, t, scratchpad, action_data)
     end
     return result
+end)
+
+mod:hook(MinionAttack, "shoot_hit_scan", function(func, world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
+    local state = VersusModeState.controlled_gunner_shot(unit)
+    if state and (state.breed.name == "renegade_gunner" or state.breed.name == "cultist_gunner") then
+        local aim_position = camera_aim_ray(state)
+        if aim_position then
+            -- Resolve the camera point at shot time, after AI dodge targeting.
+            -- Zero only this shot's spread; retain native muzzle collision and FX.
+            shoot_position = aim_position
+            optional_spread_multiplier = 0
+        end
+    end
+    return func(world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
 end)
 
 mod:hook(MinionAttack, "get_attack_delay", function(func, unit)
@@ -25037,6 +25164,7 @@ mod.on_game_state_changed = function(status, state_name)
     if status == "exit" then
         mod._team_hud_snapshot = nil
         mod._team_hud_send_delay = nil
+        mod._team_hud_host_cache = nil
     end
     if status == "exit" then VersusModeState.clear_night_vision() end
     if state_name == "RealmsPreparationState" and status == "enter" then
@@ -25048,6 +25176,7 @@ mod.on_game_state_changed = function(status, state_name)
     elseif state_name == "RealmsPreparationState" and status == "exit" then
         mod._realms_preparation_active = nil
     elseif state_name == "StateGameplay" and status == "enter" then
+        mod._match_breed_cooldowns = nil
         VersusModeState.restore_possession_camera_player_body()
         VersusModeState.finish_death_camera(false)
         VersusModeState.clear_replicated_host_state()
@@ -25063,6 +25192,7 @@ mod.on_game_state_changed = function(status, state_name)
             ui_manager:close_view(VersusModeState.roster_view_name)
         end
     elseif state_name == "StateGameplay" and status == "exit" then
+        mod._match_breed_cooldowns = nil
         VersusModeState.clear_allied_heretic_outlines()
         VersusModeState.clear_operative_outlines()
         VersusModeState.finish_death_camera(false)

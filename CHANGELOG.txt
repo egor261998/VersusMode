@@ -1,6 +1,19 @@
 Versus Mode changelog
 =====================
 
+3.0.12 - Crosshair accuracy and review fixes (2026-09-27)
+-------------------------------------------------------
+
+- Controlled Scab and Dreg Gunners resolve each shot from the current camera aim;
+  AI spread and dodge targeting no longer redirect their hit scan.
+- Preserve per-player breed cooldowns across role changes/rejoins within a match.
+- Account for snapshot age and use consistent cooldown readiness in the HUD.
+- Explicit Versus spawns retain the selected breed despite replacement mutators.
+- Check training spawn obstruction and restore previous possession on switch failure.
+- Fade night optics when returning from the Heretic camera.
+- Cache host team snapshots and refresh the team HUD at most ten times per second.
+- Add portable Lua parsing and mocked regression checks under tests/.
+
 3.0.11 — Complete known native enemy portrait mappings (2026-09-27)
 -----------------------------------------------------------------
 
