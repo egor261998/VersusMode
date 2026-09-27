@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.21"
+mod.version = "3.0.22"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -23227,9 +23227,28 @@ mod:hook(MinionAttack, "get_attack_delay", function(func, unit)
     return func(unit)
 end)
 
+function VersusModeState.sync_gunner_visual_aim(state, scratchpad, aim_position)
+    local aim = state.blackboard and state.blackboard.aim
+    if aim then
+        aim.controlled_aiming = aim_position ~= nil
+        if aim_position then aim.controlled_aim_position:store(aim_position) end
+    end
+    if not aim_position then return end
+    if scratchpad.is_anim_rotation_driven then
+        MinionMovement.set_anim_rotation_driven(scratchpad, false)
+    end
+    local origin = live_world_position(state.unit)
+    local direction = origin and Vector3.flat(aim_position - origin)
+    if direction and vector3_length(direction) > 0.01 then
+        safe_extension_call(scratchpad.locomotion_extension, "set_wanted_rotation",
+            Quaternion.look(vector3_normalize(direction), vector3_up()))
+    end
+end
+
 mod:hook(MinionAttack, "aim_at_target", function(func, unit, scratchpad, t, action_data, breed)
     local state = VersusModeState.controlled_gunner_shot(unit)
     local aim_position = state and Specialist.free_aim(state) and camera_aim_ray(state)
+    if state then VersusModeState.sync_gunner_visual_aim(state, scratchpad, aim_position or nil) end
     if aim_position then
         -- The shot follows the camera even while the body animation turns.
         -- Returning the native AI's body-angle gate would restart aiming on
@@ -23303,7 +23322,8 @@ mod:hook(BtShootAction, "_update_shooting", function(func, self, unit, t, scratc
         if state.gunner_shoot_move_event and scratchpad.is_anim_rotation_driven then
             MinionMovement.set_anim_rotation_driven(scratchpad, false)
             state.gunner_shoot_rotation_released = true
-        elseif not state.gunner_shoot_move_event and state.gunner_shoot_rotation_released then
+        elseif not state.gunner_shoot_move_event and state.gunner_shoot_rotation_released
+            and not Specialist.free_aim(state) then
             MinionMovement.set_anim_rotation_driven(scratchpad, true)
             state.gunner_shoot_rotation_released = nil
         end

@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.22 - Match gunner animation to free-aim shots (2026-09-27)
+-----------------------------------------------------------
+
+- Feed the camera shot point into native controlled animation aiming.
+- Turn the body toward that point and keep AI animation rotation disabled in free aim.
+- Restore native target animation on lock; retain native aim replication and cleanup.
+
 3.0.21 - Red melee area guide (2026-09-27)
 -----------------------------------------
 

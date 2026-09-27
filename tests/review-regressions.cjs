@@ -48,15 +48,38 @@ end
 current.breed.name='chaos_ogryn_gunner';fire('ai_dodge',3)
 current=nil;fire('ai_dodge',3)
 local function state_look_direction()return nil,'forward' end
+local visual_aim
+VersusModeState.sync_gunner_visual_aim=function(_,_,p)visual_aim=p end
 ${aimHook}
 for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
  current={possessed=true,unit='unit',attack_deadline=10,breed={name=breed},requested_attack={gunner_combat_range='far'},grenadier_target_lock=false}
  local stored;local scratch={current_aim_position={store=function(_,p)stored=p end}}
  local calls=0;local function native_aim()calls=calls+1;return 'native_lock' end
  assert(callback(native_aim,'unit',scratch,0,{},current.breed)==true and stored=='crosshair' and calls==0)
+ assert(visual_aim=='crosshair','animation must use the shot point')
  current.grenadier_target_lock=true;stored=nil
  assert(callback(native_aim,'unit',scratch,0,{},current.breed)=='native_lock' and stored==nil and calls==1)
+ assert(visual_aim==nil,'lock must restore native target animation')
 end
+`);
+run('Gunner visual aim drives animation and body rotation',`
+local VersusModeState={};local stored,rotation,released
+local Vector3={flat=function(v)return v end}
+local function live_world_position()return 2 end
+local function vector3_length(v)return math.abs(v)end
+local function vector3_normalize(v)return v/math.abs(v)end
+local function vector3_up()return 'up'end
+local Quaternion={look=function(v,up)assert(up=='up');return v end}
+local function safe_extension_call(_,method,value)assert(method=='set_wanted_rotation');rotation=value end
+local MinionMovement={set_anim_rotation_driven=function(s,value)released=value;s.is_anim_rotation_driven=value end}
+${fn('VersusModeState.sync_gunner_visual_aim')}
+local aim={controlled_aim_position={store=function(_,v)stored=v end}}
+local state={unit='gunner',blackboard={aim=aim}};local scratch={is_anim_rotation_driven=true}
+VersusModeState.sync_gunner_visual_aim(state,scratch,10)
+assert(aim.controlled_aiming and stored==10 and rotation==1 and released==false)
+VersusModeState.sync_gunner_visual_aim(state,scratch,-10);assert(rotation==-1 and stored==-10)
+rotation=nil;VersusModeState.sync_gunner_visual_aim(state,scratch,2);assert(rotation==nil,'zero horizontal aim must not normalize')
+VersusModeState.sync_gunner_visual_aim(state,scratch,nil);assert(not aim.controlled_aiming)
 `);
 run('Gunner lock toggles, HUD capabilities and client forwarding',`
 local VersusModeState={};${aimModes}
