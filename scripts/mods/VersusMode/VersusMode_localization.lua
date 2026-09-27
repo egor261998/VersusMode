@@ -1,4 +1,6 @@
 return {
+    use_drawn_enemy_portraits = { en = "Use drawn enemy icons", ru = "Рисованные иконки еретиков" },
+    use_drawn_enemy_portraits_tooltip = { en = "Replace all portraits with built-in pixel icons. Enable if native portraits display white squares. Missing native portraits always use drawn icons.", ru = "Заменить все портреты встроенными пиксельными иконками. Включи, если игровые портреты отображаются белыми квадратами. Для отсутствующих портретов рисованные иконки используются всегда." },
     melee_marker_renegade_shocktrooper = { en = "Scab Shotgunner", ru = "Скаб-дробовик" },
     melee_marker_cultist_shocktrooper = { en = "Dreg Shotgunner", ru = "Дрег-дробовик" },
     specialist_cooldown_group = { en = "Shot cooldowns — Host", ru = "КД выстрелов — хост" },

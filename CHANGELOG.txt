@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.26 - Complete enemy icon coverage (2026-09-27)
+------------------------------------------------
+
+- Retain seven native game portrait materials where available.
+- Draw original pixel portraits for missing breeds in all three portrait surfaces.
+- Cache merged pixel rectangles; fall back on missing material/render errors.
+- Add an option to force drawn icons if native materials silently render white.
+- Include a 31-icon gallery and coverage/render fallback checks.
+
 3.0.25 - Playable Shotgunners (2026-09-27)
 ----------------------------------------
 

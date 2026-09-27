@@ -15,7 +15,7 @@ end
 local function visible(content) return content.visible end
 local row_definition = UIWidget.create_definition({
     { pass_type = "rect", style = { color = { 195, 20, 28, 31 }, size = { 324, 76 } }, visibility_function = visible },
-    { pass_type = "texture", value_id = "portrait", value = "content/ui/materials/dividers/skull_rendered_center_01",
+    { pass_type = "logic", value_id = "draw_portrait", value = mod._portraits.draw,
         style = { size = { 56, 56 }, offset = { 6, 8, 2 }, color = { 255, 255, 255, 255 } }, visibility_function = visible },
     { pass_type = "text", value_id = "name", value = "", style = text_style(20, 0), visibility_function = visible },
     { pass_type = "text", value_id = "label", value = "", style = text_style(16, 23), visibility_function = visible },
@@ -59,6 +59,7 @@ HudElementVersusTeam.update = function(self, dt, t, ui_renderer, render_settings
             widget.content.name = row.name
             widget.content.label = row.label
             widget.content.portrait = row.portrait
+            widget.content.portrait_breed = row.portrait_breed
             local has_health = row.alive and row.health and row.maximum
             widget.style.health_fill.size[1] = has_health and 246 * math.min(1, row.health / row.maximum) or 0
             widget.content.status = has_health and string.format("%d / %d", math.floor(row.health), math.floor(row.maximum))

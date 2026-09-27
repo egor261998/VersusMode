@@ -37,6 +37,7 @@ VersusModeSpawnView.on_enter = function(self)
         widget.content.hotspot.disabled = entry == nil or mod.spawn_picker_cooldown(entry) > 0
         widget.content.text = entry and entry.label or ""
         widget.content.portrait = entry and entry.portrait or widget.content.portrait
+        widget.content.portrait_breed = entry and entry.portrait_breed
         -- Capture this card's identity, never the changing hover selection.
         local card_choice = entry
         widget.content.hotspot.pressed_callback = function()

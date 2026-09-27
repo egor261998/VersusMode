@@ -445,11 +445,12 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.25"
+mod.version = "3.0.26"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
 mod._realms_compat = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_realms")
+mod._portraits = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_portraits")
 
 VersusModeState.ensure_free_flight_manager()
 
@@ -542,7 +543,7 @@ local ENEMY_PORTRAITS = {
     chaos_beast_of_nurgle = "content/ui/materials/icons/portraits/minion_portraits/beast_of_nurgle_portrait",
     renegade_netgunner = "content/ui/materials/icons/portraits/minion_portraits/scab_trapper_portrait",
     chaos_hound = "content/ui/materials/icons/portraits/minion_portraits/chaos_hound_portrait",
-    chaos_armored_hound = "content/ui/materials/icons/portraits/minion_portraits/chaos_hound_portrait",
+    chaos_armored_hound = ENEMY_PORTRAIT_FALLBACK,
     chaos_hound_mutator = "content/ui/materials/icons/portraits/minion_portraits/chaos_hound_portrait",
     chaos_poxwalker_bomber = "content/ui/materials/icons/portraits/minion_portraits/bomber_portrait",
     cultist_mutant = "content/ui/materials/icons/portraits/minion_portraits/mutant_portrait",
@@ -19938,6 +19939,7 @@ mod.spawn_picker_choices = function()
             name = entry.name, variant_id = entry.variant_id,
             label = VersusModeState.respawn_label(entry.name, entry.variant_id),
             portrait = ENEMY_PORTRAITS[entry.name] or ENEMY_PORTRAIT_FALLBACK,
+            portrait_breed = entry.name,
         }
     end
     return result
@@ -20728,6 +20730,7 @@ mod.controlled_enemy_status_data = function()
             or state.burst_total and mod:localize("gunner_burst_counter", state.burst_remaining or 0, state.burst_total)
             or mod:localize("gunner_burst_waiting")) or nil,
         portrait = ENEMY_PORTRAITS[state.breed.name] or ENEMY_PORTRAIT_FALLBACK,
+        portrait_breed = state.breed.name,
         current_health = math_max(0, current_health),
         max_health = max_health,
         health_percent = math_min(1, math_max(0, current_health / max_health)),
@@ -21272,6 +21275,7 @@ mod.heretic_team_hud_data = function()
         rows[i] = {
             name = entry.name,
             portrait = ENEMY_PORTRAITS[entry.breed] or ENEMY_PORTRAIT_FALLBACK,
+            portrait_breed = entry.breed,
             label = VersusModeState.respawn_label(entry.breed, entry.variant),
             health = entry.health, maximum = entry.maximum,
             status = entry.alive and "" or remaining > 0 and mod:localize("heretic_team_wait", math.ceil(remaining))
@@ -26291,9 +26295,9 @@ local function build_embedded_hud_definitions()
             }, "enemy_status_panel"),
             enemy_portrait = UIWidget.create_definition({
                 {
-                    pass_type = "texture",
-                    value_id = "portrait",
-                    value = ENEMY_PORTRAIT_FALLBACK,
+                    pass_type = "logic",
+                    value_id = "draw_portrait",
+                    value = mod._portraits.draw,
                     style_id = "portrait",
                     style = {
                         color = { 255, 255, 255, 255 },
@@ -26783,6 +26787,7 @@ HudElementVersusMode._refresh_enemy_status = function(self)
     self:set_scenegraph_position("enemy_status_panel", setting("enemy_panel_x"), setting("enemy_panel_y"))
 
     self._widgets_by_name.enemy_portrait.content.portrait = data.portrait
+    self._widgets_by_name.enemy_portrait.content.portrait_breed = data.portrait_breed
     self._widgets_by_name.enemy_name.content.name = data.name
     self._widgets_by_name.enemy_health_text.content.health = string.format("%d / %d", math.floor(data.current_health + 0.5), math.floor(data.max_health + 0.5))
 

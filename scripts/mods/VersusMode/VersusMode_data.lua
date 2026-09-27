@@ -557,6 +557,12 @@ return {
                         tooltip = "show_allied_heretic_outlines_tooltip",
                     },
                     {
+                        setting_id = "use_drawn_enemy_portraits",
+                        type = "checkbox",
+                        default_value = false,
+                        tooltip = "use_drawn_enemy_portraits_tooltip",
+                    },
+                    {
                         setting_id = "replace_player_panel",
                         type = "checkbox",
                         default_value = true,
