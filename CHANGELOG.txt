@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.11 — Complete known native enemy portrait mappings (2026-09-27)
+-----------------------------------------------------------------
+
+- Added the native Ogryn Houndmaster portrait to the shared HUD/picker mapping.
+- Other confirmed native portraits were already mapped; selectable roster unchanged.
+
 3.0.10 — Right-side Heretic player HUD (2026-09-27)
 --------------------------------------------------
 

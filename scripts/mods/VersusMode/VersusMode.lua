@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.10"
+mod.version = "3.0.11"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -514,6 +514,7 @@ local DEFAULTS = {
 
 local ENEMY_PORTRAIT_FALLBACK = "content/ui/materials/dividers/skull_rendered_center_01"
 local ENEMY_PORTRAITS = {
+    chaos_ogryn_houndmaster = "content/ui/materials/icons/portraits/minion_portraits/chaos_ogryn_houndmaster_portrait",
     chaos_spawn = "content/ui/materials/icons/portraits/minion_portraits/chaos_spawn_portrait",
     chaos_beast_of_nurgle = "content/ui/materials/icons/portraits/minion_portraits/beast_of_nurgle_portrait",
     renegade_netgunner = "content/ui/materials/icons/portraits/minion_portraits/scab_trapper_portrait",
