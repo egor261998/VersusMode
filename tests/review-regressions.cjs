@@ -6,6 +6,22 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Beast F releases a consumed player without a new aim target',`
+local Specialist={};local now=20;local wakes=0
+local function gameplay_time()return now end
+local function valid_player_target(u)return u=='player' end
+local function safe_extension_call(ext,method,value)assert(method=='set_brain_enabled' and value);wakes=wakes+1 end
+${fn('Specialist.request_beast_spit_out')}
+local s={breed={name='chaos_beast_of_nurgle'},blackboard={behavior={}},perception_component={}}
+assert(not Specialist.request_beast_spit_out(s,'special'))
+s.blackboard.behavior.consumed_unit='player'
+assert(not Specialist.request_beast_spit_out(s,'primary'))
+assert(Specialist.request_beast_spit_out(s,'special'))
+assert(s.blackboard.behavior.force_spit_out and s.requested_attack.targetless and s.requested_attack.action_name=='spit_out')
+assert(s.perception_component.aggro_state=='aggroed' and s.attack_deadline==25 and wakes==1)
+now=21;assert(Specialist.request_beast_spit_out(s,'special') and wakes==1 and s.attack_deadline==25)
+s.breed.name='chaos_spawn';assert(not Specialist.request_beast_spit_out(s,'special'))
+`);
 run('Shotgunners restore ranged animation after melee without AI turn poses',`
 local Specialist={free_aim=function(s)return s.free end}
 local VersusModeState={shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}}

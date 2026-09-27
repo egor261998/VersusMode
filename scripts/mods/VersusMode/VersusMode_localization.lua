@@ -2135,8 +2135,8 @@ return {
         ["zh-tw"] = "連擊",
     },
     hud_attack_consume = {
-        ru = "Поглотить",
-        en = "Devour",
+        ru = "Поглотить / выплюнуть",
+        en = "Devour / spit out",
         ["zh-cn"] = "吞噬",
         ["zh-tw"] = "吞噬",
     },

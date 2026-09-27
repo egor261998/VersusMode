@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.35"
+mod.version = "3.0.36"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12399,7 +12399,7 @@ local function running_offensive_action(state)
     end
 
     if state.requested_attack
-        and state.requested_attack.casual_selected
+        and (state.requested_attack.casual_selected or state.requested_attack.beast_path == "spit_out")
         and state.requested_attack.action_name
         and action_name ~= state.requested_attack.action_name then
         return false
@@ -14110,7 +14110,7 @@ local function evaluate_forced_beast_attack(selector, state, unit, blackboard, s
 
     local attack = state.requested_attack
 
-    if not attack then
+    if not attack or attack.beast_path == "spit_out" then
         return false, nil
     end
 
@@ -17908,6 +17908,26 @@ mod.toggle_possession = function(is_pressed, force_action)
     begin_possession(unit, player, player_unit)
 end
 
+function Specialist.request_beast_spit_out(state, slot)
+    local behavior = state.blackboard and state.blackboard.behavior
+    if slot ~= "special" or state.breed.name ~= "chaos_beast_of_nurgle"
+        or not behavior or not valid_player_target(behavior.consumed_unit) then
+        return false
+    end
+    if state.requested_attack and state.requested_attack.beast_path == "spit_out" then return true end
+    local t = gameplay_time()
+    behavior.force_spit_out = true
+    if state.perception_component then state.perception_component.aggro_state = "aggroed" end
+    state.requested_attack = { label = "Consume", action_name = "spit_out", beast_path = "spit_out", targetless = true }
+    state.command_action_complete = nil
+    state.attack_started = nil
+    state.attack_min_until = t
+    state.attack_deadline = t + 5
+    state.attack_hard_deadline = t + 15
+    safe_extension_call(state.behavior, "set_brain_enabled", true)
+    return true
+end
+
 local function request_attack_for_state(state, slot, preferred_target, hound_aim_yaw, hound_aim_pitch, hound_charge_fraction)
     if slot == "primary" and VersusModeState.gunner_reloading(state) then return end
     if not state or not state.possessed then
@@ -17970,6 +17990,8 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
     end
 
     attack = Specialist.resolve_immediate_casual_primary(state, attack, preferred_target)
+
+    if Specialist.request_beast_spit_out(state, slot) then return end
 
     if state.breed.name == SNIPER_BREED_NAME and state.sniper_laser_active then
         if slot == "heavy" then

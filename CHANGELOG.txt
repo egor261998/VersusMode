@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.36 - Beast manual spit out (2026-09-27)
+------------------------------------------
+
+- F requests native spit-out when a Beast is holding a consumed player; otherwise it still requests Consume.
+- Process client requests on the host without requiring another target or interrupting native release cleanup.
+- Show Devour / spit out in the action hint.
+
 3.0.35 - Shotgun ranged animation after melee (2026-09-27)
 --------------------------------------------------------
 
