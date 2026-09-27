@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.23 - Expanded Heretic roster (2026-09-27)
+-------------------------------------------
+
+- Add Armored Hound, Mauler, Mutant and all ten boss breeds to selection.
+- Expand the picker to 24 cards, including the optional Sniper Netter.
+- Add Mauler strike, cleave and moving strike with its melee guide checkbox.
+- Initialize only newly spawned Daemonhost reinforcements awake; roll back unavailable replication.
+
 3.0.22 - Match gunner animation to free-aim shots (2026-09-27)
 -----------------------------------------------------------
 

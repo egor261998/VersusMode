@@ -5,6 +5,18 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+const stateTable=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='VersusModeState')).init[0];
+const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
+run('Expanded roster fits all cards and preserves unique choices',`
+local VersusModeState={respawn_breeds=${source.slice(...roster.range)},breeds={},specialist_variants_enabled=function()return false end}
+local seen={};for _,entry in ipairs(VersusModeState.respawn_breeds)do assert(not seen[entry.name]);seen[entry.name]=true;VersusModeState.breeds[entry.name]={} end
+assert(#VersusModeState.respawn_breeds==23)
+for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant','chaos_plague_ogryn','chaos_spawn','chaos_beast_of_nurgle','chaos_ogryn_houndmaster','chaos_daemonhost','chaos_mutator_daemonhost','renegade_captain','cultist_captain','renegade_twin_captain','renegade_twin_captain_two'})do assert(seen[name],name) end
+${fn('VersusModeState.available_spawn_choices')}
+assert(#VersusModeState.available_spawn_choices()==23)
+VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==22)
+`);
+if(!/local MAX_CARDS = 24/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 24 cards');
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));
 const aimHook=source.slice(source.indexOf('mod:hook(MinionAttack, "aim_at_target"'),source.indexOf('-- Player-controlled gunners do not need'));
 const manualDeclaration=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='MANUAL_AIM_BREEDS'));
@@ -237,7 +249,7 @@ local function get_mod()return mod end
 local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
 local count=0;for _,g in ipairs(data.options.widgets)do if g.setting_id=='melee_marker_group'then
  for _,w in ipairs(g.sub_widgets)do assert(w.type=='checkbox' and w.default_value==true);count=count+1 end
-end end;assert(count==20)
+end end;assert(count==21)
 local s={possessed=true,unit='enemy',breed={name='chaos_ogryn_executor'},yaw=0,pitch=1.2};mod._control=s
 local ALIVE={enemy=true};local menu=false;local Managers={ui={has_active_view=function()return menu end}}
 local positions={enemy=Vector3(0,0,0),target=Vector3(2,0,0)}
@@ -304,6 +316,23 @@ assert(mod._exact_spawn_context==nil and replacement(native,manager,'sniper')=='
 actual='gunner';assert(not pcall(VersusModeState.spawn_exact_minion,manager,'sniper',0,0,2,{}));assert(removed==1 and mod._exact_spawn_context==nil)
 manager.spawn_minion=function()error('spawn failed')end
 assert(not pcall(VersusModeState.spawn_exact_minion,manager,'sniper',0,0,2,{}));assert(mod._exact_spawn_context==nil)
+`);
+run('Newly spawned Daemonhosts initialize awake or roll back',`
+local mod={};local VersusModeState={daemonhost_settings={stages={aggroed=3}}}
+local ALIVE={unit=true};local breed;local ready=true;local stage;local removed=0
+local function safe_extension(_,system)
+ if system=='unit_data_system'then return {breed=function()return {name=breed}end}end
+ return ready and {_template_data={game_session='session',game_object_id=7}} or nil
+end
+local function safe_extension_call(object,method)return pcall(object[method],object)end
+local GameSession={set_game_object_field=function(session,id,field,value)assert(session=='session' and id==7 and field=='stage');stage=value end}
+local manager={spawn_minion=function(_,name)breed=name;return 'unit'end,despawn_minion=function()removed=removed+1 end}
+${fn('VersusModeState.spawn_exact_minion')}
+for _,name in ipairs({'chaos_daemonhost','chaos_mutator_daemonhost'})do
+ stage=nil;assert(VersusModeState.spawn_exact_minion(manager,name,0,0,2,{})=='unit' and stage==3)
+end
+ready=false;assert(not pcall(VersusModeState.spawn_exact_minion,manager,'chaos_daemonhost',0,0,2,{}));assert(removed==1)
+stage=nil;assert(VersusModeState.spawn_exact_minion(manager,'cultist_mutant',0,0,2,{})=='unit' and stage==nil)
 `);
 run('Host HUD cache build rate',`
 local now=0;local mod={};local function gameplay_time()return now end

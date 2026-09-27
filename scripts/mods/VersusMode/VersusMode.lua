@@ -118,8 +118,21 @@ local VersusModeState = {
         { name = "chaos_hound", label = "Pox Hound" },
         { name = "chaos_ogryn_executor", label = "Crusher" },
         { name = "chaos_poxwalker_bomber", label = "Poxburster" },
+        { name = "chaos_armored_hound", label = "Armored Hound" },
+        { name = "renegade_executor", label = "Scab Mauler" },
+        { name = "cultist_mutant", label = "Mutant" },
+        { name = "chaos_plague_ogryn", label = "Plague Ogryn" },
+        { name = "chaos_spawn", label = "Chaos Spawn" },
+        { name = "chaos_beast_of_nurgle", label = "Beast of Nurgle" },
+        { name = "chaos_ogryn_houndmaster", label = "Houndmaster" },
+        { name = "chaos_daemonhost", label = "Daemonhost" },
+        { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost" },
+        { name = "renegade_captain", label = "Scab Captain" },
+        { name = "cultist_captain", label = "Dreg Captain" },
+        { name = "renegade_twin_captain", label = "Rodin Karnak" },
+        { name = "renegade_twin_captain_two", label = "Rinda Karnak" },
     },
-    -- Keep automatic boss assignments outside this restricted reinforcement roster.
+    -- Manual boss selection does not enable automatic takeover of map bosses.
     allow_boss_reinforcements = false,
     controlled_elite_breeds = {
         renegade_gunner = true,
@@ -127,6 +140,7 @@ local VersusModeState = {
         chaos_ogryn_gunner = true,
         chaos_ogryn_executor = true,
         chaos_ogryn_bulwark = true,
+        renegade_executor = true,
     },
     gunner_smoke_melee_range = 4,
     gunner_breeds = {
@@ -426,7 +440,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.22"
+mod.version = "3.0.23"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -796,6 +810,11 @@ local ATTACKS = {
         primary = { label = "Reaper Volley", action_name = "shoot", selector_name = "combat", gunner_combat_range = "far", force_utility = true, cancellable = true, camera_directed = true, single_shoot_cycle = true },
         heavy = { label = "Reaper Strike", action_name = "melee_attack", selector_name = "combat", gunner_combat_range = "melee", range_max = 4, range_text = "0–4 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
         alternate = { label = "Reaper Push", action_name = "melee_attack_push", selector_name = "combat", gunner_combat_range = "melee", range_max = 4, range_text = "0–4 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+    },
+    renegade_executor = {
+        primary = { label = "Mauler Strike", action_name = "melee_attack", selector_name = "melee_combat", range_max = 3.25, range_text = "0–3.25 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+        heavy = { label = "Mauler Cleave", action_name = "melee_cleave_attack", selector_name = "melee_combat", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+        alternate = { label = "Advancing Strike", action_name = "moving_melee_attack", selector_name = "melee_combat", range_max = 3, range_text = "0–3 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true },
     },
     chaos_ogryn_executor = {
         primary = { label = "Crusher Strike", action_name = "melee_attack", range_max = 3.75, range_text = "0–3.75 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
@@ -1323,6 +1342,8 @@ VersusModeState.hud_attack_label_keys = {
     ["Leap Attack"] = "attack_boss_leap",
     ["Lunge"] = "hud_attack_lunge",
     ["Maul Swing"] = "hud_attack_maul_swing",
+    ["Mauler Strike"] = "hud_attack_mauler_strike",
+    ["Mauler Cleave"] = "hud_attack_mauler_cleave",
     ["Melee Attack"] = "hud_attack_melee",
     ["Moving Electric Attack"] = "hud_attack_moving_electric",
     ["Moving Sword Sweep"] = "hud_attack_moving_sword_sweep",
@@ -19682,6 +19703,19 @@ function VersusModeState.spawn_exact_minion(manager, breed_name, position, rotat
     if not breed_ok or not breed or breed.name ~= breed_name then
         pcall(manager.despawn_minion, manager, unit)
         error("Versus spawn returned a different or unavailable breed: " .. tostring(breed_name))
+    end
+    if breed_name == "chaos_daemonhost" or breed_name == "chaos_mutator_daemonhost" then
+        -- Only a newly requested reinforcement starts awake. Never alter map
+        -- Daemonhosts or bypass their normal possession safety checks.
+        local boss = safe_extension(unit, "boss_system")
+        local template = boss and boss._template_data
+        local ready = template and template.game_session and template.game_object_id ~= nil
+        local initialized = ready and pcall(GameSession.set_game_object_field,
+            template.game_session, template.game_object_id, "stage", VersusModeState.daemonhost_settings.stages.aggroed)
+        if not initialized then
+            pcall(manager.despawn_minion, manager, unit)
+            error("Spawned Daemonhost replication is not ready")
+        end
     end
     return unit
 end

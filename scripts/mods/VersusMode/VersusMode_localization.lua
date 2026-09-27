@@ -1,4 +1,6 @@
 return {
+    hud_attack_mauler_strike = { en = "Axe strike", ru = "Удар топором" },
+    hud_attack_mauler_cleave = { en = "Sweeping axe strike", ru = "Размашистый удар топором" },
     hound_lock_arc = { en = "Lock pounce charge", ru = "Зафиксировать дальность прыжка" },
     hound_arc_is_locked = { en = "Pounce charge locked", ru = "Дальность прыжка зафиксирована" },
     hound_charge_locked = { en = "LOCKED %d%% — RELEASE TO POUNCE", ru = "ЗАФИКСИРОВАНО %d%% — ОТПУСТИ ПКМ ДЛЯ ПРЫЖКА" },
@@ -9,6 +11,7 @@ return {
     melee_marker_group = { en = "Melee aiming guide — Local", ru = "Точка удара в ближнем бою — локально" },
     melee_marker_tooltip = { en = "Show an aiming guide for this enemy. Red point and filled circle: approximate strike area. Native sweeps and boxes can hit outside the circle. Ranged actions hide the guide.", ru = "Показывать ориентир удара. Красная точка и круг с заливкой: примерная область удара. Замах и прямоугольная зона атаки могут задеть точки вне круга. При стрельбе указатель скрыт." },
     melee_marker_chaos_ogryn_executor = { en = "Crusher", ru = "Крашер" },
+    melee_marker_renegade_executor = { en = "Scab Mauler", ru = "Скаб-маулер" },
     melee_marker_chaos_ogryn_bulwark = { en = "Bulwark", ru = "Огрин со щитом" },
     melee_marker_renegade_gunner = { en = "Scab Gunner", ru = "Скаб-пулемётчик" },
     melee_marker_cultist_gunner = { en = "Dreg Gunner", ru = "Дрег-пулемётчик" },
