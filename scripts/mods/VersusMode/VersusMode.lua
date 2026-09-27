@@ -19865,32 +19865,8 @@ function VersusModeState.hud_data()
         }
     end
 
-    local candidates = VersusModeState.candidates()
-    local infected_count = VersusModeState.count()
-    local survivor_count = math_max(0, #candidates - infected_count)
-    local menu_enabled = setting("enable_versus_roster_menu")
-
-    return {
-        header = mod:localize("hud_header_realms_infected"),
-        boss_name = mod:localize(infected_count > 0 and "hud_roster_applied" or "hud_roster_not_set"),
-        target_label = mod:localize("hud_infected"),
-        target_mode = tostring(infected_count),
-        target_name = mod:localize("hud_survivor_count", survivor_count),
-        target_distance = nil,
-        status = mod:localize(is_server()
-            and (menu_enabled and "hud_host_roster_ready" or "hud_roster_menu_disabled")
-            or "hud_waiting_host_roster"),
-        status_kind = is_server() and menu_enabled and "ready" or "busy",
-        locked = false,
-        show_crosshair = false,
-        action_lines = {
-            is_server() and {
-                label = configured_keybind_label("infected_menu_keybind"),
-                text = mod:localize(menu_enabled and "hud_open_roster_menu" or "hud_enable_roster_menu"),
-                kind = menu_enabled and "ready" or "busy",
-            } or { label = "REALMS", text = mod:localize("hud_versus_mode_connected", mod.version), kind = "normal" },
-        },
-    }
+    -- Roster setup belongs in the menu, not the Operative's gameplay HUD.
+    return nil
 end
 
 mod.target_lock_marker_hud_data = function()
