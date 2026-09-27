@@ -126,7 +126,9 @@ end
 VersusModeSpawnView.on_exit = function(self)
     for i = 1, definitions.max_cards do
         local widget = self._widgets_by_name["enemy_" .. i]
-        if widget and mod._portraits and mod._portraits.release then mod._portraits.release(widget.content) end
+        if widget and mod._portraits and mod._portraits.release then
+            mod._portraits.release(widget.content, not self._ui_renderer_is_external)
+        end
     end
     mod.spawn_picker_hold(false)
     VersusModeSpawnView.super.on_exit(self)
