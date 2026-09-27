@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.14"
+mod.version = "3.0.15"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -16818,6 +16818,8 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
             attack_cancellable = state and state.requested_attack
                 and state.requested_attack.cancellable == true or false,
             attack_label = state and state.requested_attack and state.requested_attack.label or nil,
+            melee_preview_yaw = state and state.command_aim_yaw,
+            melee_preview_pitch = state and state.command_aim_pitch,
             attack_phase = state and state.attack_phase,
             casual_combat = state and state.casual_combat,
             grenadier_target_lock = state and state.grenadier_target_lock,
@@ -17505,6 +17507,11 @@ function VersusModeState.apply_remote_status(payload)
         state.attack_deadline = payload.attack_active == true and math.huge or nil
         state.remote_attack_cancellable = payload.attack_cancellable == true
         state.remote_attack_label = type(payload.attack_label) == "string" and payload.attack_label or nil
+        for _, axis in ipairs({ "yaw", "pitch" }) do
+            local value = payload["melee_preview_" .. axis]
+            state["melee_preview_" .. axis] = type(value) == "number"
+                and value == value and math.abs(value) < math.huge and value or nil
+        end
         state.mutant_carrying = payload.mutant_carrying == true
         state.poxburster_armed = payload.poxburster_armed == true
         state.sniper_laser_active = payload.sniper_laser_active == true
@@ -19867,6 +19874,80 @@ function VersusModeState.hud_data()
 
     -- Roster setup belongs in the menu, not the Operative's gameplay HUD.
     return nil
+end
+
+function VersusModeState.is_preview_melee(attack)
+    local name = attack and attack.action_name or ""
+    return attack and (attack.free_aim_melee or attack.direct_native == "specialist_melee"
+        or string.find(name, "melee", 1, true) or string.find(name, "combo", 1, true)
+        or string.find(name, "sweep", 1, true) or string.find(name, "slam", 1, true)
+        or name == "kick" or name == "claw_attack" or name == "plague_stomp"
+        or name == "far_moving_attack" or name == "shield_push") and true or false
+end
+
+function VersusModeState.melee_preview_attack(state, attacks)
+    if state.attack_deadline then
+        local active = state.requested_attack
+        if state.remote_client then
+            active = nil
+            for _, attack in pairs(attacks or {}) do
+                if attack.label == state.remote_attack_label then active = attack break end
+            end
+        end
+        return VersusModeState.is_preview_melee(active) and active or nil
+    end
+    for _, slot in ipairs({ "primary", "heavy", "alternate", "special" }) do
+        local attack = attacks and attacks[slot]
+        if VersusModeState.is_preview_melee(attack) then return attack end
+    end
+end
+
+mod.melee_marker_hud_data = function()
+    local state = mod._control
+    if not state or not state.possessed or not state.breed or not ALIVE[state.unit]
+        or Managers.ui and Managers.ui:has_active_view() then return nil end
+    if mod:get("melee_marker_" .. state.breed.name) == false then return nil end
+    local attack = VersusModeState.melee_preview_attack(state, resolved_attacks_for_state(state))
+    if not attack then return nil end
+    local origin = live_world_position(state.unit)
+    if not origin then return nil end
+    -- Area attacks without a command range are centred on the attacker.
+    -- This is an aiming guide, not a prediction of the animated weapon sweep.
+    if not attack.range_max then return { position = origin + vector3_up() * 0.15, kind = "area" } end
+    local reach = attack.range_max
+    if type(reach) ~= "number" or reach <= 0 or reach ~= reach or reach == math.huge then return nil end
+    local free_aim = Specialist.free_aim(state)
+    local target = not free_aim and (state.attack_target or VersusModeState.locked_target_for_state(state)
+        or nearest_attack_target(state))
+    local target_position = target and live_world_position(target)
+    if not free_aim and not target_position then return nil end
+    local direction
+    local kind = "reach"
+    if target_position then
+        local offset = Vector3.flat(target_position - origin)
+        local distance = vector3_length(offset)
+        if distance < 0.01 then return nil end
+        direction = offset / distance
+        if distance <= reach then reach = distance; kind = "target" end
+    else
+        local yaw = state.attack_deadline and (state.remote_client and state.melee_preview_yaw or state.command_aim_yaw) or state.yaw
+        if type(yaw) ~= "number" then return nil end
+        local pitch = not attack.free_aim_melee and (state.attack_deadline
+            and (state.remote_client and state.melee_preview_pitch or state.command_aim_pitch) or state.pitch) or 0
+        pitch = pitch or 0
+        direction = Vector3(math_sin(yaw) * math_cos(pitch), math_cos(yaw) * math_cos(pitch), math_sin(pitch))
+    end
+    local start = origin + vector3_up()
+    local position = start + direction * reach
+    local physics = VersusModeState.physics_world()
+    if not physics then return nil end
+    -- Start outside the controlled unit's body; retain obstruction checks.
+    local inset = math_min(0.75, reach * 0.5)
+    local ok, hit, hit_position = pcall(PhysicsWorld.raycast, physics, start + direction * inset,
+        direction, reach - inset, "closest", "types", "both", "collision_filter", "filter_minion_shooting_no_friendly_fire")
+    if not ok then return nil end
+    if hit and hit_position then position = hit_position; kind = "contact" end
+    return { position = position, kind = kind }
 end
 
 mod.target_lock_marker_hud_data = function()
@@ -26501,6 +26582,11 @@ mod:register_hud_element({
 })
 
 mod._night_vision = {}
+mod:register_hud_element({
+    class_name = "HudElementVersusMeleeMarker",
+    filename = "VersusMode/scripts/mods/VersusMode/VersusMode_melee_hud",
+    visibility_groups = { "alive", "dead" },
+})
 mod:register_hud_element({
     class_name = "HudElementVersusTeam",
     filename = "VersusMode/scripts/mods/VersusMode/VersusMode_team_hud",

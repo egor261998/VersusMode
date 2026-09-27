@@ -84,6 +84,55 @@ assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
 assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
+run('Melee guide attack selection, geometry and individual settings',`
+local VersusModeState={}
+${fn('VersusModeState.is_preview_melee')}
+${fn('VersusModeState.melee_preview_attack')}
+local melee={action_name='melee_attack',label='Strike',range_max=4,free_aim_melee=true}
+local shoot={action_name='shoot',label='Fire'}
+assert(VersusModeState.melee_preview_attack({}, {primary=shoot,heavy=melee})==melee)
+assert(VersusModeState.melee_preview_attack({attack_deadline=1,requested_attack=shoot},{heavy=melee})==nil)
+assert(VersusModeState.melee_preview_attack({attack_deadline=1,remote_client=true,remote_attack_label='Strike'},{heavy=melee})==melee)
+assert(VersusModeState.melee_preview_attack({attack_deadline=1,remote_client=true,remote_attack_label='Unknown'},{heavy=melee})==nil)
+local mt={};local function Vector3(x,y,z)return setmetatable({x=x,y=y,z=z},mt)end
+mt.__add=function(a,b)return Vector3(a.x+b.x,a.y+b.y,a.z+b.z)end
+mt.__sub=function(a,b)return Vector3(a.x-b.x,a.y-b.y,a.z-b.z)end
+mt.__mul=function(a,b)return Vector3(a.x*b,a.y*b,a.z*b)end
+mt.__div=function(a,b)return Vector3(a.x/b,a.y/b,a.z/b)end
+local make_vector=Vector3
+Vector3=setmetatable({flat=function(v)return make_vector(v.x,v.y,0)end},{__call=function(_,...)return make_vector(...)end})
+local function vector3_up()return Vector3(0,0,1)end
+local function vector3_length(v)return math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)end
+local math_min,math_sin,math_cos=math.min,math.sin,math.cos
+local settings={};local mod={get=function(_,k)return settings[k]end,localize=function(_,k)return k end}
+local function get_mod()return mod end
+local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
+local count=0;for _,g in ipairs(data.options.widgets)do if g.setting_id=='melee_marker_group'then
+ for _,w in ipairs(g.sub_widgets)do assert(w.type=='checkbox' and w.default_value==true);count=count+1 end
+end end;assert(count==20)
+local s={possessed=true,unit='enemy',breed={name='chaos_ogryn_executor'},yaw=0,pitch=1.2};mod._control=s
+local ALIVE={enemy=true};local menu=false;local Managers={ui={has_active_view=function()return menu end}}
+local positions={enemy=Vector3(0,0,0),target=Vector3(2,0,0)}
+local function live_world_position(u)return positions[u]end
+local attacks={primary=melee};local function resolved_attacks_for_state()return attacks end
+local free=true;local Specialist={free_aim=function()return free end}
+VersusModeState.locked_target_for_state=function()return 'target'end
+local function nearest_attack_target()return nil end
+VersusModeState.physics_world=function()return {}end
+local blocked=false;local PhysicsWorld={raycast=function()return blocked,blocked and Vector3(0,2,1)end}
+${source.slice(source.indexOf('mod.melee_marker_hud_data = function()'),source.indexOf('mod.target_lock_marker_hud_data = function()'))}
+local p=mod.melee_marker_hud_data();assert(p.position.y==4 and p.position.z==1 and p.kind=='reach','flat melee must ignore camera pitch')
+s.attack_deadline=1;s.requested_attack=melee;s.command_aim_yaw=math.pi/2
+p=mod.melee_marker_hud_data();assert(math.abs(p.position.x-4)<.001,'windup must preserve command direction')
+s.attack_deadline=nil;s.command_aim_yaw=nil
+blocked=true;p=mod.melee_marker_hud_data();assert(p.position.y==2 and p.kind=='contact');blocked=false
+free=false;p=mod.melee_marker_hud_data();assert(p.position.x==2 and p.kind=='target')
+positions.target=Vector3(8,0,0);p=mod.melee_marker_hud_data();assert(p.position.x==4 and p.kind=='reach')
+settings.melee_marker_chaos_ogryn_executor=false;assert(mod.melee_marker_hud_data()==nil)
+s.breed.name='chaos_ogryn_bulwark';assert(mod.melee_marker_hud_data()~=nil,'toggles must be independent')
+menu=true;assert(mod.melee_marker_hud_data()==nil);menu=false
+s.possessed=false;assert(mod.melee_marker_hud_data()==nil)
+`);
 run('Cooldown persistence, packet age and expiry',`
 local now=100;local server=true;local math_max=math.max;local mod={}
 local function gameplay_time()return now end;local function is_server()return server end
