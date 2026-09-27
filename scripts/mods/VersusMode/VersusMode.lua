@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.28"
+mod.version = "3.0.29"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -20685,6 +20685,16 @@ mod.grenade_trajectory_hud_data = function()
     return solution
 end
 
+function VersusModeState.specialist_panel_cooldown(state)
+    local breed = state and state.breed and state.breed.name
+    if breed ~= SNIPER_BREED_NAME and breed ~= NETTER_BREED_NAME then return nil end
+    local deadline = breed == SNIPER_BREED_NAME and state.sniper_fire_cooldown_until
+        or breed == NETTER_BREED_NAME and state.netter_fire_cooldown_until or 0
+    local remaining = math.max(0, (deadline or 0) - gameplay_time())
+    return remaining > 0 and mod:localize("specialist_panel_cooldown", math.ceil(remaining * 10) / 10)
+        or mod:localize("specialist_panel_ready")
+end
+
 mod.controlled_enemy_status_data = function()
     local state = mod._control
 
@@ -20707,7 +20717,7 @@ mod.controlled_enemy_status_data = function()
 
     return {
         name = VersusModeState.controlled_label(state),
-        ammo = VersusModeState.gunner_breeds[state.breed.name] and (
+        ammo = VersusModeState.specialist_panel_cooldown(state) or VersusModeState.gunner_breeds[state.breed.name] and (
             VersusModeState.gunner_reloading(state) and mod:localize("gunner_burst_reloading")
             or state.burst_total and mod:localize("gunner_burst_counter", state.burst_remaining or 0, state.burst_total)
             or mod:localize("gunner_burst_waiting")) or nil,

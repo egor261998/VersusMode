@@ -1,4 +1,6 @@
 return {
+    specialist_panel_cooldown = { en = "Shot cooldown: %.1f s", ru = "КД выстрела: %.1f с" },
+    specialist_panel_ready = { en = "Ready to fire", ru = "Выстрел готов" },
     use_drawn_enemy_portraits = { en = "Use drawn enemy icons", ru = "Рисованные иконки еретиков" },
     use_drawn_enemy_portraits_tooltip = { en = "Replace all portraits with built-in pixel icons. Enable if native portraits display white squares. Missing native portraits always use drawn icons.", ru = "Заменить все портреты встроенными пиксельными иконками. Включи, если игровые портреты отображаются белыми квадратами. Для отсутствующих портретов рисованные иконки используются всегда." },
     melee_marker_renegade_shocktrooper = { en = "Scab Shotgunner", ru = "Скаб-дробовик" },
