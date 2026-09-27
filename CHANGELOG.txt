@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.27 - Fix melee circle projection (2026-09-27)
+-----------------------------------------------
+
+- Convert camera screen X/Y into the X/Z plane expected by Gui.triangle.
+- Correct both circle outline and fill; discard camera depth for GUI vertices.
+- Add a render regression check for all 144 triangles and offscreen hiding.
+
 3.0.26 - Complete enemy icon coverage (2026-09-27)
 ------------------------------------------------
 

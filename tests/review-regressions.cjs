@@ -287,6 +287,29 @@ s.breed.name='chaos_ogryn_bulwark';assert(mod.melee_marker_hud_data()~=nil,'togg
 menu=true;assert(mod.melee_marker_hud_data()==nil);menu=false
 s.possessed=false;assert(mod.melee_marker_hud_data()==nil)
 `);
+run('Melee circle uses GUI X/Z coordinates for both fill and outline',`
+local mt={};local function Vector3(x,y,z)return setmetatable({x=x,y=y,z=z},mt)end
+mt.__add=function(a,b)return Vector3(a.x+b.x,a.y+b.y,a.z+b.z)end
+mt.__sub=function(a,b)return Vector3(a.x-b.x,a.y-b.y,a.z-b.z)end
+local data={position=Vector3(0,0,0),area_position=Vector3(0,0,0),area_radius=1}
+local mod={melee_marker_hud_data=function()return data end}
+local function get_mod()return mod end
+local function class()return {}end
+local function Color(...)return {...}end
+local Managers={free_flight={is_in_free_flight=function()return true end,camera=function()return {}end}}
+local visible=true
+local Camera={inside_frustum=function()return visible and 1 or -1 end,
+world_to_screen=function(_,p)return Vector3(800+p.x*100,700+p.y*50,0.25),1 end}
+local fills,edges,rects=0,0,0
+local Gui={triangle=function(_,a,b,c,layer)
+ for _,p in ipairs({a,b,c})do assert(p.y==0 and p.z>640 and p.z<760,'screen Y must become GUI Z, not camera depth')end
+ if layer==10 then assert(a.x==800 and a.z==700);fills=fills+1 else assert(layer==11);edges=edges+1 end
+end,rect=function(_,p)assert(p.y>680 and p.y<720);rects=rects+1 end}
+local hud=(function()${fs.readFileSync(path.join(base,'VersusMode_melee_hud.lua'),'utf8')} end)()
+hud.draw({_draw_layer=10},0,0,{gui={}})
+assert(fills==48 and edges==96 and rects==5)
+visible=false;hud.draw({_draw_layer=10},0,0,{gui={}});assert(fills==48 and edges==96 and rects==5)
+`);
 run('Cooldown persistence, packet age and expiry',`
 local now=100;local server=true;local math_max=math.max;local mod={}
 local function gameplay_time()return now end;local function is_server()return server end

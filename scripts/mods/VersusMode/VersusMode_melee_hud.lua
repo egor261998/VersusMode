@@ -15,6 +15,12 @@ HudElementVersusMeleeMarker.draw = function(self, dt, t, ui_renderer)
     local data = mod.melee_marker_hud_data()
     if not data then return end
     local gui, z = ui_renderer.gui, self._draw_layer or 0
+    -- Gui.triangle uses the GUI X/Z plane, unlike Gui.rect's screen X/Y.
+    -- Camera.world_to_screen returns X/Y; its depth must never reach the GUI.
+    local function triangle(a, b, c, layer, color)
+        Gui.triangle(gui, Vector3(a.x, 0, a.y), Vector3(b.x, 0, b.y),
+            Vector3(c.x, 0, c.y), layer, color)
+    end
     local function project(position)
         if Camera.inside_frustum(camera, position) <= 0 then return nil end
         local point, distance = Camera.world_to_screen(camera, position)
@@ -36,10 +42,10 @@ HudElementVersusMeleeMarker.draw = function(self, dt, t, ui_renderer)
             local length = math.sqrt(dx * dx + dy * dy)
             if length > 0.01 then
                 local offset = Vector3(-dy / length * 1.5, dx / length * 1.5, 0)
-                Gui.triangle(gui, previous - offset, current - offset, current + offset, z + 1, edge_color)
-                Gui.triangle(gui, previous - offset, current + offset, previous + offset, z + 1, edge_color)
+                triangle(previous - offset, current - offset, current + offset, z + 1, edge_color)
+                triangle(previous - offset, current + offset, previous + offset, z + 1, edge_color)
                 if projected_center then
-                    Gui.triangle(gui, projected_center, previous, current, z, fill_color)
+                    triangle(projected_center, previous, current, z, fill_color)
                 end
             end
         end
