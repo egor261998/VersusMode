@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.43 - Imported portrait in controlled enemy panel (2026-09-27)
+---------------------------------------------------------------
+
+- Show the supplied enemy portrait beside health in the bottom-left HUD panel.
+- Reuse the frame-safe renderer and preserve portrait proportions.
+
 3.0.42 - Portrait frame lifetime fix (2026-09-27)
 -----------------------------------------------
 

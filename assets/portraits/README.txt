@@ -9,8 +9,8 @@ The current renderer has no external JPG texture loader. It uses 48-pixel-wide
 previews with preserved aspect ratio and 4-bit RGB quantization, merging equal
 horizontal/vertical runs. The original JPGs remain unmodified here.
 
-Imported portraits are used only in the selection cards. The existing lightweight
-portraits remain on the gameplay HUD. Missing imported data uses the old fallback.
+Imported portraits are used in the selection cards and the bottom-left controlled
+enemy panel. The team HUD retains lightweight portraits. Missing data uses the old fallback.
 No external file paths or additional mods are required at runtime.
 
 In-game frame-time impact has not been measured. Each preview uses at most 2048

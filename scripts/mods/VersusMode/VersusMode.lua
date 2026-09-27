@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.42"
+mod.version = "3.0.43"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -26393,7 +26393,7 @@ local function build_embedded_hud_definitions()
                         color = { 255, 255, 255, 255 },
                     },
                 },
-            }, "enemy_portrait"),
+            }, "enemy_portrait", { use_imported_portrait = true }),
             enemy_name = UIWidget.create_definition({
                 {
                     pass_type = "text",
