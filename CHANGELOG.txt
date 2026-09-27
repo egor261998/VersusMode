@@ -1,6 +1,16 @@
 Versus Mode changelog
 =====================
 
+3.0.14 - Key-operated, adjustable night vision (2026-09-27)
+---------------------------------------------------------
+
+- Add a dedicated local night-vision settings group and rebindable N toggle.
+- Night vision starts OFF and can only be enabled by its key on the Heretic side.
+- Add strength (default 50%), fill intensity, distance, exposure and tint sliders.
+- Default to broad fill light with zero added exposure and natural colors.
+- Remove activation flash, blur, scanlines, grain and vignette.
+- Test key gating, settings defaults, neutral optics and role-exit cleanup.
+
 3.0.13 - Optional Gunner target lock (2026-09-27)
 ----------------------------------------------
 

@@ -43,17 +43,24 @@ local function apply(shading_env)
 		return
 	end
 
-	ShadingEnvironment.set_scalar(shading_env, "grey_scale_enabled", 1)
-	ShadingEnvironment.set_scalar(shading_env, "grey_scale_amount", _greyscale * _weight)
+	if _greyscale > 0 then
+		ShadingEnvironment.set_scalar(shading_env, "grey_scale_enabled", 1)
+		ShadingEnvironment.set_scalar(shading_env, "grey_scale_amount", _greyscale * _weight)
+	end
 
 	local peak, _, _, blur = surge_params()
 	local exposure = ShadingEnvironment.scalar(shading_env, "exposure_compensation")
 	local boost = _exposure * _weight * (1 + peak * _surge)
 
-	ShadingEnvironment.set_scalar(shading_env, "exposure_compensation", exposure + boost)
+	if boost > 0 then
+		ShadingEnvironment.set_scalar(shading_env, "exposure_compensation", exposure + boost)
+	end
 
-	ShadingEnvironment.set_scalar(shading_env, "fullscreen_blur_enabled", 1)
-	ShadingEnvironment.set_scalar(shading_env, "fullscreen_blur_amount", (_blur + blur * _surge) * _weight)
+	local blur_amount = (_blur + blur * _surge) * _weight
+	if blur_amount > 0 then
+		ShadingEnvironment.set_scalar(shading_env, "fullscreen_blur_enabled", 1)
+		ShadingEnvironment.set_scalar(shading_env, "fullscreen_blur_amount", blur_amount)
+	end
 end
 
 local function step_surge(dt)

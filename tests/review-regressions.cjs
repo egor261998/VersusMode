@@ -136,7 +136,9 @@ local mod={_night_vision={}};local Managers={ui={has_active_view=function()retur
 local function get_mod()return mod end
 mod._night_vision.ramp=(function()${fs.readFileSync(path.join(base,'VersusMode_night_ramp.lua'),'utf8')} end)()
 mod._night_vision.optics=(function()${fs.readFileSync(path.join(base,'VersusMode_night_optics.lua'),'utf8')} end)()
-local active=false;local VersusModeState={night_vision_active=function()return active end}
+local active=false;local VersusModeState={night_vision_active=function()return active end,local_infected_view=function()return active end}
+local function setting()return nil end
+${fn('VersusModeState.night_vision_tuning')}
 local Unit={alive=function()return true end};local World={destroy_unit=function()end}
 Managers.world={has_world=function()return true end,world=function()return 'world'end}
 Managers.free_flight={is_in_free_flight=function()return false end}
@@ -146,6 +148,62 @@ mod._night_vision.optics.set_target(1);mod._night_vision.optics.update(1)
 VersusModeState.update_night_vision(.1);assert(mod._night_vision.optics.weight()>0 and mod._night_vision.optics.weight()<1)
 for i=1,10 do VersusModeState.update_night_vision(.1)end
 assert(mod._night_vision.optics.weight()==0)
+`);
+run('Night vision key, tuning, role restriction and neutral exposure',`
+local settings={enable_versus_mode=true};local eligible=true;local menu=false
+local function setting(id)return settings[id] end
+local mod={_night_vision={},echo=function()end,localize=function(_,key)return key end}
+local function get_mod()return mod end
+local Managers={ui={has_active_view=function()return menu end}}
+local VersusModeState={local_infected_view=function()return eligible end}
+${fn('VersusModeState.night_vision_active')}
+${fn('VersusModeState.night_vision_tuning')}
+${source.slice(source.indexOf('mod.toggle_night_vision = function'),source.indexOf('function VersusModeState.night_vision_tuning'))}
+assert(not VersusModeState.night_vision_active())
+mod.toggle_night_vision(false);assert(not VersusModeState.night_vision_active())
+mod.toggle_night_vision(true);assert(VersusModeState.night_vision_active())
+menu=true;mod.toggle_night_vision(true);assert(VersusModeState.night_vision_active());menu=false
+mod.toggle_night_vision(true);assert(not VersusModeState.night_vision_active())
+eligible=false;mod.toggle_night_vision(true);assert(not VersusModeState.night_vision_active());eligible=true
+local effect,fill,distance,exposure,tint=VersusModeState.night_vision_tuning()
+assert(effect==1 and fill==4 and distance==60 and exposure==0 and tint==0)
+local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
+local night_group
+for _,group in ipairs(data.options.widgets)do if group.setting_id=='night_vision_group'then night_group=group end end
+assert(night_group and #night_group.sub_widgets==6)
+local key=night_group.sub_widgets[1]
+assert(key.function_name=='toggle_night_vision' and key.keybind_trigger=='pressed' and key.default_value[1]=='n')
+assert(night_group.sub_widgets[2].default_value==50)
+settings.night_vision_strength=100;assert(VersusModeState.night_vision_tuning()==2)
+settings.night_vision_strength=0;assert(VersusModeState.night_vision_tuning()==0)
+settings.night_vision_strength=0/0;assert(VersusModeState.night_vision_tuning()==1)
+local writes={};local callback;local CLASS={CameraManager={}}
+local ShadingEnvironment={scalar=function()return 1.25 end,set_scalar=function(_,key,v)writes[key]=v end}
+mod.hook=function(_,_,_,f)callback=f end
+mod._night_vision.ramp=(function()${fs.readFileSync(path.join(base,'VersusMode_night_ramp.lua'),'utf8')} end)()
+local optics=(function()${fs.readFileSync(path.join(base,'VersusMode_night_optics.lua'),'utf8')} end)()
+mod._night_vision.optics=optics;optics.install(mod)
+optics.set_tuning(0,0,0,.3,.6);optics.set_surge(0,0,0,0);optics.set_intro_surge(0,0,0,0)
+optics.set_target(1);optics.update(.3);callback(function()end,nil,nil,{})
+assert(next(writes)==nil,'default must not add exposure, blur or desaturation')
+optics.set_tuning(.5,0,0,.3,.6);callback(function()end,nil,nil,{})
+assert(writes.exposure_compensation==1.75,'optional exposure must have no activation flash')
+settings.night_vision_strength=50;mod.toggle_night_vision(true)
+local intensity,range;local alive=false
+local Unit={alive=function()return alive end,num_lights=function()return 1 end,light=function()return {}end,num_meshes=function()return 0 end,set_local_position=function()end,set_local_rotation=function()end}
+local World={spawn_unit_ex=function()alive=true;return 'light'end,destroy_unit=function()alive=false end,update_unit=function()end}
+local Light=setmetatable({set_intensity=function(_,v)intensity=v end,set_falloff_end=function(_,v)range=v end},{__index=function()return function()end end})
+local function Vector3()return 0 end
+local Quaternion={forward=function()return 1 end};local function vector3_up()return 1 end
+Managers.world={has_world=function()return true end,world=function()return 'world'end}
+Managers.free_flight={is_in_free_flight=function()return true end,camera_position_rotation=function()return 0,0 end}
+mod.package_status=function()return 'loaded'end
+${fn('VersusModeState.clear_night_vision')}
+${fn('VersusModeState.update_night_vision')}
+VersusModeState.update_night_vision(1);assert(alive and intensity==4 and range==60)
+settings.night_vision_strength=100;VersusModeState.update_night_vision(.1);assert(intensity==8)
+eligible=false;VersusModeState.update_night_vision(1);assert(not mod._night_vision_enabled and not alive)
+eligible=true;VersusModeState.update_night_vision(1);assert(not alive,'returning to Heretics must not auto-enable')
 `);
 run('Training preflight, rollback and cleanup',`
 local mod={warning=function()end};local VersusModeState={training_available=function()return true end,available_spawn_choices=function()return {{name='sniper'}}end,nav_queries={position_on_mesh_guaranteed=function(_,p)return p end},physics_world=function()return {}end,spawn_headroom=function()return 3 end}

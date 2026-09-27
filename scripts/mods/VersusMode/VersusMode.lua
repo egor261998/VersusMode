@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.13"
+mod.version = "3.0.14"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -451,7 +451,11 @@ local vector3_normalize = Vector3.normalize
 local vector3_up = Vector3.up
 
 local DEFAULTS = {
-    heretic_night_vision = true,
+    night_vision_strength = 50,
+    night_vision_fill = 4,
+    night_vision_distance = 60,
+    night_vision_exposure = 0,
+    night_vision_tint = 0,
     selection_range = 50,
     move_speed_percent = 90,
     attack_burst_duration = 2,
@@ -20780,8 +20784,29 @@ end
 
 -- Built-in night vision is restricted to the local Heretic role.
 function VersusModeState.night_vision_active()
-    return setting("enable_versus_mode") and setting("heretic_night_vision")
+    return setting("enable_versus_mode") and mod._night_vision_enabled == true
         and VersusModeState.local_infected_view() and true or false
+end
+
+mod.toggle_night_vision = function(is_pressed)
+    if is_pressed == false or not setting("enable_versus_mode")
+        or not VersusModeState.local_infected_view()
+        or Managers.ui and Managers.ui:has_active_view() then return end
+    mod._night_vision_enabled = not mod._night_vision_enabled
+    mod:echo(mod:localize(mod._night_vision_enabled and "night_vision_on" or "night_vision_off"))
+end
+
+function VersusModeState.night_vision_tuning()
+    local function number(id, fallback, minimum, maximum)
+        local value = setting(id)
+        if type(value) ~= "number" or value ~= value then value = fallback end
+        return math.max(minimum, math.min(maximum, value))
+    end
+    return number("night_vision_strength", 50, 0, 100) / 50,
+        number("night_vision_fill", 4, 0, 8),
+        number("night_vision_distance", 60, 10, 150),
+        number("night_vision_exposure", 0, 0, 1),
+        number("night_vision_tint", 0, 0, 100) / 100
 end
 
 -- Local fill lighting, not exposure: UI and existing bright light sources keep
@@ -20800,6 +20825,12 @@ end
 
 function VersusModeState.update_night_vision(dt)
     local vision = mod._night_vision
+    if not setting("enable_versus_mode") or not VersusModeState.local_infected_view() then
+        mod._night_vision_enabled = false
+    end
+    local effect, fill, distance, exposure, tint = VersusModeState.night_vision_tuning()
+    vision.tint = math.min(1, tint * effect)
+    vision.optics.set_tuning(exposure * effect, 0, 0, 0.3, 0.6)
     local flight = Managers.free_flight
     local camera_active = flight and flight:is_in_free_flight()
     vision.optics.set_target(VersusModeState.night_vision_active() and camera_active and 1 or 0)
@@ -20855,8 +20886,8 @@ function VersusModeState.update_night_vision(dt)
         + vector3_up() * (1.5)
     Unit.set_local_position(light.unit, 1, position)
     Unit.set_local_rotation(light.unit, 1, rotation)
-    Light.set_falloff_end(light.source, 15)
-    Light.set_intensity(light.source, strength * (4))
+    Light.set_falloff_end(light.source, distance)
+    Light.set_intensity(light.source, strength * fill * effect)
     World.update_unit(world, light.unit)
 end
 
@@ -25165,7 +25196,10 @@ mod.on_game_state_changed = function(status, state_name)
         mod._team_hud_send_delay = nil
         mod._team_hud_host_cache = nil
     end
-    if status == "exit" then VersusModeState.clear_night_vision() end
+    if status == "exit" then
+        mod._night_vision_enabled = false
+        VersusModeState.clear_night_vision()
+    end
     if state_name == "RealmsPreparationState" and status == "enter" then
         VersusModeState.begin_realms_preparation_roster()
         -- Realms lazy-loads the preparation view after on_all_mods_loaded.
@@ -25469,6 +25503,7 @@ mod.on_setting_changed = function(setting_id)
 end
 
 mod.on_disabled = function()
+    mod._night_vision_enabled = false
     VersusModeState.clear_night_vision()
     if mod._control and mod._control.remote_client then
         VersusModeState.send_client_action("release")
@@ -25504,6 +25539,7 @@ mod.on_disabled = function()
 end
 
 mod.on_unload = function()
+    mod._night_vision_enabled = false
     VersusModeState.clear_night_vision()
     VersusModeState.clear_allied_heretic_outlines()
     VersusModeState.clear_operative_outlines()
@@ -26498,6 +26534,10 @@ mod:register_hud_element({
 
 mod._night_vision.ramp = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_ramp")
 mod._night_vision.optics = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_optics")
+mod._night_vision_enabled = false
+mod._night_vision.optics.set_tuning(0, 0, 0, 0.3, 0.6)
+mod._night_vision.optics.set_surge(0, 0, 0, 0)
+mod._night_vision.optics.set_intro_surge(0, 0, 0, 0)
 mod._night_vision.optics.install(mod)
 mod:register_hud_element({
     class_name = "HudElementVersusNightVision",
