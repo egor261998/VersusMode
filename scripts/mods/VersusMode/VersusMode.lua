@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.56"
+mod.version = "3.0.57"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -16475,7 +16475,8 @@ local function update_camera(state)
         camera_rotation = Quaternion.look(look_direction, vector3_up())
     end
 
-    state.camera_position = Vector3Box(camera_position)
+    if state.camera_position then state.camera_position:store(camera_position)
+    else state.camera_position = Vector3Box(camera_position) end
     state.camera_rotation = camera_rotation
     state.look_direction = look_direction
 
@@ -16501,7 +16502,8 @@ function VersusModeState.update_remote_camera_pose(state)
         camera_position, camera_rotation = VersusModeState.third_person_camera(state, position, look_direction, flat_forward)
     end
 
-    state.camera_position = Vector3Box(camera_position)
+    if state.camera_position then state.camera_position:store(camera_position)
+    else state.camera_position = Vector3Box(camera_position) end
     state.camera_rotation = camera_rotation
     state.look_direction = look_direction
 

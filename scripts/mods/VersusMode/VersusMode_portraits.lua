@@ -153,10 +153,20 @@ function portraits.draw(_, renderer, style, content, position, size)
         local scale = math.min(size[1] / photo.width, size[2] / photo.height)
         local left = position[1] + (size[1] - photo.width * scale) / 2
         local top = position[2] + (size[2] - photo.height * scale) / 2
-        for _, run in ipairs(photo.runs) do
-            UIRenderer.draw_rect(renderer,
-                Vector3(left + run[1] * scale, top + run[2] * scale, position[3]),
-                Vector3(run[3] * scale, run[4] * scale, 0), Color(255, run[5], run[6], run[7]))
+        if photo.packed then
+            for i = 1, #photo.packed, 7 do
+                local x, y, w, h, r, g, b = string.byte(photo.packed, i, i + 6)
+                UIRenderer.draw_rect(renderer,
+                    Vector3(left + x * scale, top + y * scale, position[3]),
+                    Vector3(w * scale, h * scale, 0), Color(255, r, g, b))
+            end
+        else
+            -- Support portrait data already loaded before a mod update.
+            for _, run in ipairs(photo.runs) do
+                UIRenderer.draw_rect(renderer,
+                    Vector3(left + run[1] * scale, top + run[2] * scale, position[3]),
+                    Vector3(run[3] * scale, run[4] * scale, 0), Color(255, run[5], run[6], run[7]))
+            end
         end
         return
     end

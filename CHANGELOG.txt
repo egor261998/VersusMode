@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.57 - Review fixes and allocation reduction (2026-09-27)
+----------------------------------------------------------
+
+- Preserve offer ID and Yes/No in client action packets; reset the client offer watermark between sessions.
+- Prune dead boss entries even at capacity or with offers disabled; weakly retain already-offered roles.
+- Reuse camera position boxes instead of allocating them every update.
+- Pack 51,160 portrait rectangles into 358,120 bytes, removing per-rectangle Lua tables with identical coordinates and colors.
+- Keep frame-local engine colors and the same rendering calls; no FPS improvement is claimed.
+
 3.0.56 - Boss takeover offers (2026-09-27)
 ---------------------------------------
 

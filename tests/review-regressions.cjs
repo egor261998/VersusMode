@@ -6,6 +6,32 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Remote camera updates reuse the persistent position box',`
+local created=0;local position=1
+local function Vector3Box(value)created=created+1;return {value=value,store=function(self,v)self.value=v end}end
+local function live_world_position()return position end
+local function state_look_direction()return 2,3 end
+local SNIPER_BREED_NAME='sniper'
+local VersusModeState={third_person_camera=function(_,p)return p,4 end}
+${fn('VersusModeState.update_remote_camera_pose')}
+local s={unit=1,breed={name='boss'}}
+assert(VersusModeState.update_remote_camera_pose(s));local box=s.camera_position
+position=9;assert(VersusModeState.update_remote_camera_pose(s))
+assert(created==1 and s.camera_position==box and box.value==9)
+`);
+const realmsSource=fs.readFileSync(path.join(base,'VersusMode_realms.lua'),'utf8');
+const sendActionNode=parse(realmsSource,{luaVersion:'5.1',ranges:true}).body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)==='RealmsBridge.send_action');
+run('Realms transmits both boss decision fields without expanding unrelated RPCs',`
+local RealmsBridge={};local RPC_ACTION='action';local payload
+local function send(_,_,p)payload=p;return true end
+${realmsSource.slice(...sendActionNode.range)}
+for _,accepted in ipairs({true,false})do
+ assert(RealmsBridge.send_action('boss_offer_answer',1,{offer_id=42,accepted=accepted,arbitrary='bad'}))
+ assert(payload.offer_id==42 and payload.accepted==accepted and payload.arbitrary==nil)
+end
+RealmsBridge.send_action('attack_primary',2,{offer_id=42,accepted=true});assert(payload.offer_id==nil)
+RealmsBridge.send_action('boss_offer_answer',3,{offer_id=0/0,accepted=true});assert(payload.offer_id==nil)
+`);
 run('Boss offers require consent, reserve ownership and expire safely',`
 local create=(function() ${fs.readFileSync(path.join(base,'VersusMode_boss_offers.lua'),'utf8')} end)()
 local t=0;local enabled=true;local capacity=true;local taken=0;local sent={}
@@ -48,6 +74,11 @@ popup.options[2].callback();assert(reply[1]==10 and reply[2]==false and removed=
 client:receive(payload);assert(shown==1)
 payload.offer_id=11;client:receive(payload);popup.options[1].callback();assert(reply[2]==true)
 payload.offer_id=12;client:receive(payload);t=t+16;client:update();assert(not client.local_offer)
+client:reset();payload.offer_id=1;client:receive(payload);assert(client.local_offer.id==1)
+-- Dead entries must be pruned even when offers are disabled or capacity is full.
+env.host=function()return true end;enabled=false;capacity=false;alive=false
+local garbage={};for i=1,100 do garbage[i]={unit=i}end
+o:update(garbage);assert(next(garbage)==nil)
 `);
 run('Havoc lieutenant inventory resolves consistently without mutating native templates',`
 local hook;local enabled=true

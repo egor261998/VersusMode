@@ -414,6 +414,14 @@ function RealmsBridge.send_action(action, sequence, extra)
         payload.picker_open = extra.picker_open
     end
 
+    if action == "boss_offer_answer" and extra
+        and type(extra.offer_id) == "number" and extra.offer_id % 1 == 0
+        and extra.offer_id > 0 and extra.offer_id <= 2147483647
+        and type(extra.accepted) == "boolean" then
+        payload.offer_id = extra.offer_id
+        payload.accepted = extra.accepted
+    end
+
     return send(RPC_ACTION, "host", payload)
 end
 

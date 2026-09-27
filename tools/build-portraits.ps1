@@ -34,9 +34,15 @@ foreach ($entry in $map.PSObject.Properties) {
         $previous = $current
     }
     $bmp.Dispose()
-    [void]$lua.Append("do local p = { width = $width, height = $height, runs = {`r`n")
-    foreach ($r in $runs) { [void]$lua.Append('{' + ($r -join ',') + "},`r`n") }
-    [void]$lua.Append("} }`r`n")
+    # Seven bytes per rectangle, instead of one retained Lua table per rectangle.
+    [void]$lua.Append("do local p = { width = $width, height = $height, packed = `"")
+    foreach ($r in $runs) {
+        foreach ($value in $r) {
+            if ($value -lt 0 -or $value -gt 255) { throw 'Portrait field does not fit a byte' }
+            [void]$lua.Append(('\{0:D3}' -f [int]$value))
+        }
+    }
+    [void]$lua.Append("`" }`r`n")
     foreach ($breed in $entry.Value) { [void]$lua.Append("images.$breed = p`r`n") }
     [void]$lua.Append("end`r`n")
     Write-Output "$($entry.Name): $($runs.Count) rectangles"

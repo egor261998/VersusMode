@@ -30,18 +30,19 @@ end
 assert(n==32)
 for breed in pairs(portraits.profiles)do
  local p=assert(imported[breed],breed);local area=0
- assert(#p.runs<=2048)
- for _,r in ipairs(p.runs)do
-  assert(r[1]>=0 and r[2]>=0 and r[1]+r[3]<=p.width and r[2]+r[4]<=p.height)
-  area=area+r[3]*r[4]
+ assert(type(p.packed)=='string' and #p.packed%7==0 and #p.packed/7<=2048)
+ for i=1,#p.packed,7 do
+  local x,y,w,h=string.byte(p.packed,i,i+3)
+  assert(x+w<=p.width and y+h<=p.height and w>0 and h>0)
+  area=area+w*h
  end
  assert(area==p.width*p.height)
 end
 portraits.draw(nil,{},nil,{portrait_breed='chaos_ogryn_executor',portrait='native',use_imported_portrait=true},{0,0,1},{110,110})
-assert(rect_calls==#imported.chaos_ogryn_executor.runs and texture_calls==0)
+assert(rect_calls==#imported.chaos_ogryn_executor.packed/7 and texture_calls==0)
 frame=frame+1
 portraits.draw(nil,{},nil,{portrait_breed='chaos_ogryn_executor',portrait='native',use_imported_portrait=true},{0,0,1},{110,110})
-assert(rect_calls==2*#imported.chaos_ogryn_executor.runs and texture_calls==0)
+assert(rect_calls==2*#imported.chaos_ogryn_executor.packed/7 and texture_calls==0)
 rect_calls=0
 local content={portrait_breed='renegade_gunner',portrait='native'}
 portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(texture_calls==1 and rect_calls==0)

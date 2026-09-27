@@ -54,6 +54,7 @@ return function(env)
     function offers:reset()
         self:cancel()
         self:close_local()
+        self.last_id = nil
     end
 
     function offers:answer(role, id, accepted)
@@ -72,6 +73,12 @@ return function(env)
             self:close_local()
         end
         if not env.host() then return end
+        -- Cleanup must also run while disabled or at the controlled-boss cap.
+        if pending then
+            for unit in pairs(pending) do
+                if not env.alive(unit) then pending[unit] = nil end
+            end
+        end
         if not env.enabled() then self:cancel(); return end
         local active = self.active
         if active then
@@ -95,7 +102,7 @@ return function(env)
             if not env.alive(unit) then
                 pending[unit] = nil
             elseif env.boss_eligible(entry) then
-                entry.offered_roles = entry.offered_roles or {}
+                entry.offered_roles = entry.offered_roles or setmetatable({}, { __mode = "k" })
                 for _, role in pairs(env.roles()) do
                     if not entry.offered_roles[role] and env.role_eligible(role)
                         and (not selected or entry.queued_at < selected.queued_at) then
