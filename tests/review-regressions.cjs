@@ -5,6 +5,73 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+run('Reopen picker preserves death choices, respects UI safety and ignores key release', `
+local available,prepared,gated,other=true,true,false,false
+local opened,view=0,nil
+local choices={{name='sniper'},{name='trapper'}}
+local role={death_choice_pending=true,death_choice_id=7,death_choice_shown=7,death_choices=choices}
+local mod={spawn_picker_available=function()return available end,prepare_versus_view=function()return prepared end}
+local VersusModeState={local_role=function()return role end}
+local function control_input_ui_gated()return gated end
+local Managers={ui={
+ view_instance=function()return view end,
+ has_active_view=function()return other end,
+ open_view=function()opened=opened+1;view={}end}}
+${source.slice(source.indexOf('mod.open_spawn_picker = function'),source.indexOf('mod.spawn_picker_hold = function'))}
+assert(not mod.open_spawn_picker(false) and opened==0)
+assert(mod.open_spawn_picker(true) and opened==1)
+assert(mod.open_spawn_picker(true) and opened==1)
+view=nil -- ESC does not reset death_choice_shown
+assert(mod.open_spawn_picker(true) and opened==2)
+assert(role.death_choice_shown==7 and role.death_choices==choices and role.death_choice_pending)
+view=nil;available=false;assert(not mod.open_spawn_picker(true))
+available=true;prepared=false;assert(not mod.open_spawn_picker(true))
+prepared=true;gated=true;assert(not mod.open_spawn_picker(true))
+gated=false;other=true;assert(not mod.open_spawn_picker(true))
+assert(opened==2)
+Managers.ui=nil;assert(not mod.open_spawn_picker(true))
+`);
+run('Native pathing preserves possession, defers link interruption and forwards client requests', `
+local now=10;local nav,brain,pauses,sent=0,0,0,0
+local ALIVE={[1]=true};local HEALTH_ALIVE={[1]=true}
+local link=false;local fail=false;local remaining=0
+local mod={_combat_balance={remaining=function()return remaining end},localize=function(_,k)return k end}
+local VersusModeState={controlled_traversal_carrying_player=function()return false end,
+ send_client_action=function(a)assert(a=='native_pathing');sent=sent+1;return true end}
+local function gameplay_time()return now end
+local function nearest_attack_target()return 'operative' end
+local function destroy_grenade_preview()end
+local function safe_extension_call(e,k,...)
+ if k=='set_enabled' then nav=nav+1;return not fail end
+ if k=='set_brain_enabled' then brain=brain+1 end
+ if k=='is_using_smart_object' then return true,link end
+ return true
+end
+local function pause_brain(s)pauses=pauses+1;s.native_pathing_started=nil end
+local function set_status(s,message)s.status_message=message end
+${fn('VersusModeState.update_native_pathing')}
+${fn('VersusModeState.toggle_native_pathing')}
+local s={unit=1,possessed=true,breed={is_boss=true},blackboard={spawn={}},perception_component={},old_max_speed=4}
+assert(VersusModeState.toggle_native_pathing(s))
+assert(s.native_pathing and s.possessed and brain==1 and nav==1 and s.perception_component.aggro_state=='aggroed')
+for i=1,10000 do assert(VersusModeState.update_native_pathing(s))end
+assert(brain==1 and nav==1) -- no per-frame restarts
+link=true;assert(VersusModeState.toggle_native_pathing(s) and s.native_pathing and s.native_pathing_stop_requested)
+assert(pauses==1 and s.possessed)
+link=false;s.blackboard.spawn.is_exiting_spawner=true
+assert(VersusModeState.update_native_pathing(s) and pauses==1)
+s.blackboard.spawn.is_exiting_spawner=false
+assert(not VersusModeState.update_native_pathing(s) and not s.native_pathing and s.possessed)
+assert(pauses==2 and s.balance_cancel_t==10 and s.balance_boss_end_t==10)
+s.attack_deadline=20;assert(not VersusModeState.toggle_native_pathing(s));s.attack_deadline=nil
+s.player_cc_active=true;assert(not VersusModeState.toggle_native_pathing(s));s.player_cc_active=nil
+remaining=1;assert(not VersusModeState.toggle_native_pathing(s));remaining=0
+fail=true;VersusModeState.toggle_native_pathing(s)
+assert(not s.native_pathing and s.possessed and s.status_message=='native_pathing_failed')
+fail=false;s.remote_client=true
+assert(VersusModeState.toggle_native_pathing(s) and sent==1 and not s.native_pathing)
+ALIVE[1]=false;assert(not VersusModeState.toggle_native_pathing(s) and sent==1)
+`);
 run('Spawn ranks nearby doors/cover and keeps ground safety in fallback', `
 local math_min,math_max=math.min,math.max
 local function vector3_up()return 1 end
@@ -643,7 +710,7 @@ view._selection_submitted=true;view:cb_group('bosses');assert(view._choices[1]==
 `);
 run('Sniper requires aim on the authoritative command path',`
 local SNIPER_BREED_NAME='renegade_sniper';local status;local starts=0
-local VersusModeState={sniper_shot_delay=function()return 1 end,gunner_reloading=function()return false end,echo_localized=function()end}
+local VersusModeState={balance_attack_blocked=function()return false end,sniper_shot_delay=function()return 1 end,gunner_reloading=function()return false end,echo_localized=function()end}
 local Specialist={resolve_immediate_casual_primary=function(_,a)return a end,request_beast_spit_out=function()return false end}
 local mod={localize=function(_,k)return k end}
 local function control_input_ui_gated()return false end
@@ -828,7 +895,8 @@ ${fn('Specialist.free_aim')}
 `;
 run('Controlled Scab and Dreg shot direction and native isolation',`
 local current;local ray='crosshair';local callback;local MinionAttack={}
-local mod={hook=function(_,_,_,f)callback=f end}
+local mod={hook=function(_,_,_,f)callback=f end,_combat_balance={shot=function()end}}
+local function gameplay_time()return 10 end
 local VersusModeState={gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true},control_for_unit=function()return current end}
 ${aimModes}
 local function camera_aim_ray()return ray end

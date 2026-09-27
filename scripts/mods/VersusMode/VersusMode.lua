@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.1.2"
+mod.version = "3.2.0"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -541,6 +541,14 @@ local DEFAULTS = {
     infected_min_spawn_distance = 5,
     auto_takeover_normal_bosses = true,
     max_infected_controlled_bosses = 1,
+    enable_boss_attack_delay = true,
+    attack_cancel_delay = 1,
+    bomber_throw_delay = 3,
+    shotgun_shot_delay = 1,
+    shotgun_magazine_size = 6,
+    shotgun_reload_duration = 3,
+    trapper_shot_delay = 1,
+    boss_attack_delay = 1,
     controlled_boss_health_multiplier = 2,
     controlled_specialist_health_multiplier = 1.5,
     controlled_elite_health_multiplier = 1.5,
@@ -2234,6 +2242,8 @@ local function gameplay_time()
 
     return time_manager:has_timer("main") and time_manager:time("main") or 0
 end
+
+mod._combat_balance = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_combat_balance")(setting)
 
 function VersusModeState.sniper_preparation_remaining(state)
     if not state or not state.breed or state.breed.name ~= SNIPER_BREED_NAME then return 0 end
@@ -6784,6 +6794,7 @@ local function commit_grenade_solution(state, blackboard)
 end
 
 local function update_manual_aim_preview(state)
+    if state.native_pathing then return end
     if HOUND_BREEDS[state.breed.name] and state.hound_pounce_preview_active then
         local t = gameplay_time()
 
@@ -9741,6 +9752,8 @@ local function pause_brain(state)
     end
 
     local t = gameplay_time()
+    mod._combat_balance.finished(state, t)
+    state.native_pathing_started = nil
 
     if state.behavior then
         pcall(function()
@@ -9841,6 +9854,31 @@ local function pause_brain(state)
     -- recovery event instead of a perpetual timer-based heartbeat.
     state.animation_heartbeat_last_event = nil
     Specialist.destroy_hound_preview(state)
+end
+
+-- Native stagger owns movement until it finishes; cameras keep updating.
+function VersusModeState.resume_player_cc(state)
+    local stagger = state.blackboard and state.blackboard.stagger
+    if not stagger or stagger.num_triggered_staggers <= 0 then return end
+    if not state.player_cc_active then
+        if state.controlled_traversal then
+            VersusModeState.finish_controlled_traversal(state, "staggered", false, true)
+        end
+        pause_brain(state)
+    end
+    state.player_cc_active = true
+    safe_extension_call(state.behavior, "set_brain_enabled", true)
+end
+
+function VersusModeState.update_player_cc(state)
+    if not state.player_cc_active then return false end
+    local stagger = state.blackboard and state.blackboard.stagger
+    if stagger and stagger.num_triggered_staggers > 0 then
+        return true
+    end
+    state.player_cc_active = nil
+    pause_brain(state)
+    return false
 end
 
 local function outline_system()
@@ -12553,7 +12591,17 @@ local function active_summoned_hound_count(state)
     return alive
 end
 
+function VersusModeState.balance_attack_blocked(state, attack)
+    if state.native_pathing then return true end
+    if state.player_cc_active then return true end
+    local remaining = mod._combat_balance.remaining(state, attack, gameplay_time())
+    if remaining <= 0 then return false end
+    set_status(state, mod:localize("variant_attack_cooldown", remaining), remaining)
+    return true
+end
+
 local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw, hound_aim_pitch, hound_charge_fraction)
+    if VersusModeState.balance_attack_blocked(state, attack) then return end
     if state.attack_deadline then
         set_status(state, "Attack already in progress", 1.5)
 
@@ -14280,6 +14328,77 @@ local function control_input_ui_gated(state)
     return gated
 end
 
+-- Keep possession, camera and networking, but let native AI own navigation.
+-- This includes spawner exits and navigation links, rather than a raw teleport.
+function VersusModeState.update_native_pathing(state)
+    if not state.native_pathing then return false end
+    if state.native_pathing_stop_requested then
+        local ok, using_link = safe_extension_call(state.navigation, "is_using_smart_object")
+        local spawn = state.blackboard and state.blackboard.spawn
+        if ok and using_link or spawn and spawn.is_exiting_spawner
+            or VersusModeState.controlled_traversal_carrying_player(state) then
+            return true
+        end
+        state.native_pathing = nil
+        state.native_pathing_stop_requested = nil
+        state.balance_cancel_t = gameplay_time()
+        if state.breed.is_boss then state.balance_boss_end_t = gameplay_time() end
+        pause_brain(state)
+        safe_extension_call(state.navigation, "stop")
+        set_status(state, mod:localize("native_pathing_off"), 3)
+        return false
+    end
+    if not state.native_pathing_started then
+        local target = nearest_attack_target(state)
+        if state.perception_component then
+            state.perception_component.lock_target = false
+            state.perception_component.aggro_state = "aggroed"
+        end
+        if target then safe_extension_call(state.perception, "_set_target_unit", target) end
+        safe_extension_call(state.perception, "force_new_target_attempt")
+        local nav_ok = safe_extension_call(state.navigation, "set_enabled", true, state.old_max_speed)
+        local brain_ok = nav_ok and safe_extension_call(state.behavior, "set_brain_enabled", true)
+        if not brain_ok then
+            state.native_pathing = nil
+            pause_brain(state)
+            set_status(state, mod:localize("native_pathing_failed"), 3)
+            return false
+        end
+        state.native_pathing_started = true
+        state.status_message = nil
+        state.attack_phase = mod:localize("native_pathing_on")
+    end
+    return true
+end
+
+function VersusModeState.toggle_native_pathing(state)
+    if not state or not state.possessed or not ALIVE[state.unit] or not HEALTH_ALIVE[state.unit] then return false end
+    if state.remote_client then
+        return VersusModeState.send_client_action("native_pathing")
+    end
+    if state.native_pathing then
+        state.native_pathing_stop_requested = true
+        set_status(state, mod:localize("native_pathing_stopping"), 5)
+        if not state.player_cc_active then VersusModeState.update_native_pathing(state) end
+        return true
+    end
+    if state.player_cc_active or state.attack_deadline or state.controlled_traversal
+        or VersusModeState.controlled_traversal_carrying_player(state)
+        or mod._combat_balance.remaining(state, nil, gameplay_time()) > 0 then
+        set_status(state, mod:localize("native_pathing_busy"), 2)
+        return false
+    end
+    pause_brain(state)
+    destroy_grenade_preview(state)
+    state.native_pathing = true
+    return VersusModeState.update_native_pathing(state)
+end
+
+mod.toggle_native_pathing = function(is_pressed)
+    if is_pressed == false or control_input_ui_gated(mod._control) then return end
+    VersusModeState.toggle_native_pathing(mod._control)
+end
+
 function VersusModeState.active_free_flight_camera()
     local free_flight = Managers.free_flight
 
@@ -15052,7 +15171,8 @@ function VersusModeState.update_mutant_door_clearance(state, traversal, t, posit
 end
 
 function VersusModeState.start_controlled_traversal(state, requested_destination, door_target_unit, traversal_metadata)
-    if not state or not state.possessed or state.remote_client then
+    if state and state.native_pathing then return false end
+    if not state or not state.possessed or state.remote_client or state.player_cc_active then
         return false
     end
 
@@ -15768,7 +15888,8 @@ mod.traversal_highlight_hud_data = function()
 end
 
 function VersusModeState.start_contextual_traversal(state)
-    if not state or not state.possessed or state.remote_client then
+    if state and state.native_pathing then return false end
+    if not state or not state.possessed or state.remote_client or state.player_cc_active then
         return false
     end
 
@@ -15840,6 +15961,8 @@ function VersusModeState.start_contextual_traversal(state)
 end
 
 function VersusModeState.start_controlled_door_traversal(state)
+    if state and state.native_pathing then return false end
+    if state and state.player_cc_active then return false end
     if not state or not state.possessed or state.remote_client then
         return false
     end
@@ -17004,6 +17127,7 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
     if mod._realms_compat then
         local payload = {
             attack_active = state and state.attack_deadline ~= nil or false,
+            native_pathing = state and state.native_pathing == true or false,
             attack_cancellable = state and state.requested_attack
                 and state.requested_attack.cancellable == true or false,
             attack_label = state and state.requested_attack and state.requested_attack.label or nil,
@@ -17018,6 +17142,8 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
             grenadier_target_lock = state and state.grenadier_target_lock,
             kind = kind or "info",
             locomotion_event = state
+                and not state.native_pathing
+                and not state.player_cc_active
                 and not state.attack_deadline
                 and not state.controlled_traversal
                 and not state.poxburster_armed
@@ -17721,6 +17847,7 @@ function VersusModeState.apply_remote_status(payload)
         state.attack_deadline = payload.attack_active == true and math.huge or nil
         state.remote_attack_cancellable = payload.attack_cancellable == true
         state.remote_attack_label = type(payload.attack_label) == "string" and payload.attack_label or nil
+        state.native_pathing = payload.native_pathing == true
         state.grenade_authoritative_arc = state.attack_deadline and VersusModeState.decode_grenade_arc(payload.grenade_arc) or nil
         if state.grenade_authoritative_arc or payload.kind == "error" then
             state.grenade_pending_arc = nil
@@ -18040,6 +18167,8 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
         return
     end
 
+    if VersusModeState.balance_attack_blocked(state, attack) then return end
+
     attack = Specialist.resolve_immediate_casual_primary(state, attack, preferred_target)
 
     if state.breed.name == "chaos_beast_of_nurgle" and slot == "alternate" then
@@ -18311,6 +18440,8 @@ function VersusModeState.send_client_action(action, extra)
 end
 
 function VersusModeState.cancel_control_action(state)
+    if state and state.native_pathing then return end
+    if state and state.player_cc_active then return end
     if not state or not state.possessed then
         return
     end
@@ -18358,6 +18489,7 @@ function VersusModeState.cancel_control_action(state)
     end
 
     local attack_name = attack.label
+    state.balance_cancel_t = gameplay_time()
 
     pause_brain(state)
     safe_anim_event(state.animation, "idle")
@@ -18517,6 +18649,8 @@ function VersusModeState.gunner_reloading(state)
 end
 
 function VersusModeState.restart_gunner_burst(state)
+    if state and state.native_pathing then return end
+    if state and state.player_cc_active then return end
     if not state or not state.possessed or not state.breed
         or not ALIVE[state.unit]
         or not VersusModeState.gunner_breeds[state.breed.name]
@@ -18529,6 +18663,7 @@ function VersusModeState.restart_gunner_burst(state)
     end
     if state.attack_deadline then
         if not state.requested_attack or state.requested_attack.gunner_combat_range ~= "far" then return end
+        state.balance_cancel_t = gameplay_time()
         pause_brain(state)
     end
     -- Native gunners count bursts, not magazines. Do not start shooting on R.
@@ -18799,6 +18934,8 @@ function VersusModeState.receive_remote_action(peer_id, payload)
         cycle_control_target(state)
     elseif payload.action == "target_lock" then
         Specialist.toggle_target_lock(state)
+    elseif payload.action == "native_pathing" then
+        VersusModeState.toggle_native_pathing(state)
     elseif payload.action == "restart_burst" then
         VersusModeState.restart_gunner_burst(state)
     elseif payload.action == "context_traverse"
@@ -19988,7 +20125,7 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
     end
 
     if VersusModeState.training_available() then
-        Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+        mod.open_spawn_picker(true)
         return
     end
 
@@ -20018,7 +20155,7 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
         return
     end
 
-    Managers.ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+    mod.open_spawn_picker(true)
 end
 
 mod.spawn_picker_cooldown = function(entry)
@@ -20061,6 +20198,22 @@ mod.spawn_picker_available = function()
     return setting("enable_versus_mode") and (VersusModeState.spawn_selection_enabled() or role and role.death_choices)
         and role and role.infected_human and not role.assigned_boss_unit
         and not mod._control and not mod._death_camera
+end
+
+mod.open_spawn_picker = function(is_pressed)
+    if is_pressed == false then return false end
+    local ui = Managers.ui
+    if not ui or not mod.spawn_picker_available() then return false end
+    if ui:view_instance("versus_mode_spawn_view") then return true end
+    if ui:has_active_view() or control_input_ui_gated(mod._control) then return false end
+    if not mod.prepare_versus_view("versus_mode_spawn_view") then return false end
+    ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+    if not ui:view_instance("versus_mode_spawn_view") then return false end
+    local role = VersusModeState.local_role()
+    if role and role.death_choice_pending then
+        role.death_choice_shown = role.death_choice_id
+    end
+    return true
 end
 
 mod.spawn_picker_hold = function(open)
@@ -20195,11 +20348,11 @@ function VersusModeState.hud_data()
                     kind = spectator_name and "normal" or "busy",
                 },
                 {
-                    label = configured_keybind_label("cycle_infected_spawn_keybind"),
-                    text = VersusModeState.spawn_selection_enabled()
-                        and mod:localize("infected_spawn_cycle_hud")
+                    label = keybind_label("open_spawn_picker_keybind"),
+                    text = mod.spawn_picker_available()
+                        and mod:localize("open_spawn_picker_hud")
                         or mod:localize("infected_spawn_cycle_hud_disabled"),
-                    kind = VersusModeState.spawn_selection_enabled() and "ready" or "normal",
+                    kind = mod.spawn_picker_available() and "ready" or "normal",
                 },
                 is_server()
                     and { label = configured_keybind_label("infected_menu_keybind"), text = mod:localize("hud_open_roster_menu"), kind = "normal" }
@@ -20344,6 +20497,19 @@ mod.control_hud_data = function()
 
     if not setting("show_control_hud") then
         return nil
+    end
+
+    if state.native_pathing then
+        return {
+            header = mod:localize("native_pathing_on"),
+            boss_name = VersusModeState.respawn_label(state.breed.name, state.variant_id),
+            target_label = "", target_mode = "", target_name = "",
+            status = state.status_message or mod:localize("native_pathing_on"),
+            status_kind = "busy", locked = false, show_crosshair = false,
+            action_lines = {
+                { label = keybind_label("native_pathing_keybind"), text = mod:localize("native_pathing_return"), kind = "ready" },
+            },
+        }
     end
 
     if state.breed.name == NETTER_BREED_NAME then
@@ -21115,7 +21281,11 @@ function VersusModeState.update_authoritative_remote_control(state)
     refresh_engine_position(state.unit)
     VersusModeState.update_remote_camera_pose(state)
 
-    if state.attack_deadline then
+    if VersusModeState.update_player_cc(state) then
+        -- Native stagger owns locomotion; status replication continues below.
+    elseif VersusModeState.update_native_pathing(state) then
+        -- The server AI owns movement and native link transitions.
+    elseif state.attack_deadline then
         local t = gameplay_time()
 
         if state.breed.name == SNIPER_BREED_NAME and state.sniper_shot_fired and t >= (state.sniper_shot_stop_t or 0) then
@@ -21610,7 +21780,11 @@ mod.update = function(dt)
 
     refresh_engine_position(state.unit)
 
-    if state.attack_deadline then
+    if VersusModeState.update_player_cc(state) then
+        update_manual_look(state)
+    elseif VersusModeState.update_native_pathing(state) then
+        update_manual_look(state)
+    elseif state.attack_deadline then
         local t = gameplay_time()
 
         -- Camera rotation remains player-controlled throughout every attack.
@@ -21793,6 +21967,19 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
     hit_shield,
     damage_type
 )
+    local state = VersusModeState.control_for_unit(unit)
+    if state and state.possessed and mod._combat_balance.player_cc_profile(damage_profile, attack_type)
+        and valid_player_target(attacking_unit) then
+        -- Keep native resistance, shield checks and immunity windows. Only
+        -- operative pushes/abilities bypass our environmental flinch immunity.
+        local applied, stagger_type = func(unit, damage_profile, damage_profile_lerp_values,
+            target_settings, attacking_unit, power_level, charge_level, is_critical_strike,
+            is_backstab, is_flanking, hit_weakspot, dropoff_scalar, attack_direction,
+            attack_type, attack_result, herding_template_or_nil, hit_shield, damage_type)
+        if applied then VersusModeState.resume_player_cc(state) end
+        return applied, stagger_type
+    end
+
     if VersusModeState.controlled_stagger_immune(unit) then
         return false, nil
     end
@@ -21860,6 +22047,13 @@ mod:hook(VersusModeState.stagger, "apply_stagger", function(
 end)
 
 mod:hook(VersusModeState.stagger, "force_stagger", function(func, unit, stagger_type, attack_direction, duration, length_scale, immune_time, attacker_unit, ignore_no_stagger)
+    local state = VersusModeState.control_for_unit(unit)
+    if state and state.possessed and attacker_unit
+        and mod._player_ability_cc == attacker_unit and valid_player_target(attacker_unit) then
+        local result = func(unit, stagger_type, attack_direction, duration, length_scale, immune_time, attacker_unit, ignore_no_stagger)
+        VersusModeState.resume_player_cc(state)
+        return result
+    end
     if VersusModeState.controlled_stagger_immune(unit) then
         return
     end
@@ -21883,6 +22077,29 @@ mod:hook(VersusModeState.stagger, "force_stagger", function(func, unit, stagger_
         attacker_unit,
         ignore_no_stagger
     )
+end)
+
+-- Force-stagger has no damage profile. Scope permission to native ability
+-- execution, never to an arbitrary explosion merely credited to a player.
+function VersusModeState.with_player_ability_cc(func, player_unit, ...)
+    local previous = mod._player_ability_cc
+    mod._player_ability_cc = player_unit
+    local ok, result = pcall(func, ...)
+    mod._player_ability_cc = previous
+    if not ok then error(result, 0) end
+    return result
+end
+
+mod:hook(require("scripts/extension_systems/ability/utilities/shout_ability"), "execute", function(func, radius, template, player_unit, ...)
+    return VersusModeState.with_player_ability_cc(func, player_unit, radius, template, player_unit, ...)
+end)
+
+mod:hook(require("scripts/extension_systems/ability/actions/action_adamant_shout"), "start", function(func, self, ...)
+    return VersusModeState.with_player_ability_cc(func, self._player_unit, self, ...)
+end)
+
+mod:hook(require("scripts/extension_systems/ability/actions/action_psyker_shout"), "fixed_update", function(func, self, ...)
+    return VersusModeState.with_player_ability_cc(func, self._player_unit, self, ...)
 end)
 
 mod:hook(VersusModeState.minion_buff_extension, "add_internally_controlled_buff", function(func, self, template_name, t, ...)
@@ -23251,7 +23468,7 @@ mod:hook(VersusModeState.combat_range_user_behavior, "update_minion_phase", func
         return
     end
 
-    if state and state.possessed and CAPTAIN_BREEDS[state.breed.name] then
+    if state and state.possessed and not state.native_pathing and CAPTAIN_BREEDS[state.breed.name] then
         return
     end
 
@@ -23454,7 +23671,16 @@ mod:hook(MinionAttack, "shoot_hit_scan", function(func, world, physics_world, un
             if not (VersusModeState.shotgun_breeds or {})[state.breed.name] then optional_spread_multiplier = 0 end
         end
     end
-    return func(world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
+    local result = func(world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
+    -- This boundary is reached only when a blast is emitted. shoot() also
+    -- returns normally when blocked by line of sight and must not spend ammo.
+    if state then
+        mod._combat_balance.shot(state, gameplay_time())
+        if state.breed.name == "renegade_plasma_gunner" then
+            state.shotgun_fire_cooldown_until = gameplay_time() + 1
+        end
+    end
+    return result
 end)
 
 mod:hook(MinionAttack, "get_attack_delay", function(func, unit)
@@ -23627,10 +23853,6 @@ mod:hook(BtShootAction, "_update_shooting", function(func, self, unit, t, scratc
         and (attack.casual_command or VersusModeState.shotgun_breeds[state.breed.name])
         and attack.single_shoot_cycle
         and fired_last_shot then
-        if VersusModeState.shotgun_breeds[state.breed.name] then
-            local cooldown = state.breed.name == "renegade_plasma_gunner" and 1 or 0.5
-            state.shotgun_fire_cooldown_until = t + cooldown
-        end
         state.command_action_complete = true
         state.attack_min_until = 0
         state.attack_phase = "FIRED"
@@ -24707,6 +24929,7 @@ mod:hook(BtShootNetAction, "enter", function(func, self, unit, breed, blackboard
         -- The native difficulty table can request a burst of multiple nets.
         -- Direct control treats one Primary press as exactly one projectile.
         scratchpad.num_shots = 1
+        scratchpad.shoot_t = t + mod._combat_balance.number("trapper_shot_delay", 1, 0.5, 3)
         state.net_shot_complete = nil
         safe_extension_call(state.navigation, "set_enabled", false)
         safe_extension_call(state.locomotion, "set_wanted_velocity_flat", Vector3.zero())
@@ -24738,9 +24961,12 @@ mod:hook(BtShootNetAction, "_update_aiming", function(func, self, unit, t, scrat
     scratchpad.current_aim_position:store(aim_position)
     state.attack_phase = "AIMING NET"
 
-    -- The camera aim is already prepared; skip the AI's net wind-up timer.
-    self:_start_shooting(unit, scratchpad, action_data)
-    state.attack_phase = "FIRED"
+    -- Native enter plays the aiming sound. Keep its warning window while
+    -- continuously tracking the controller's crosshair.
+    if t >= (scratchpad.shoot_t or t) then
+        self:_start_shooting(unit, scratchpad, action_data)
+        state.attack_phase = "FIRED"
+    end
 end)
 
 mod:hook(BtShootNetAction, "_start_shooting", function(func, self, unit, scratchpad, action_data)
@@ -24985,6 +25211,7 @@ mod:hook(BtGrenadierThrowAction, "_throw_grenade", function(func, self, unit, br
 
     if controlled_stationary_throw and throw_type == "throw" and VersusModeState.control_for_unit(unit) == state then
         state.grenade_projectile_spawned = true
+        state.balance_bomb_t = t
         state.attack_phase = "THROWN"
     end
 
