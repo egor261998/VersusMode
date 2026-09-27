@@ -84,6 +84,31 @@ assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
 assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
+run('Native burst counter and standard-reload restart',`
+local VersusModeState={gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true}}
+${fn('VersusModeState.record_gunner_burst')}
+local s={};local scratch={num_shots=12.5,shots_fired=0}
+VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_total==13 and s.burst_remaining==13)
+scratch.shots_fired=4;VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_remaining==9)
+VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_remaining==9,'no additional decrement on a non-shot update')
+scratch.shots_fired=0;VersusModeState.record_gunner_burst(s,scratch,true);assert(s.burst_remaining==0,'native reset on last shot must not refill HUD')
+scratch.num_shots=8;VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_remaining==8 and s.burst_total==8)
+local gated=false;local paused=0;local requested=0;local sent
+local function control_input_ui_gated()return gated end
+local function pause_brain(state)paused=paused+1;state.attack_deadline=nil end
+local function request_attack_for_state(_,slot)assert(slot=='primary');requested=requested+1 end
+VersusModeState.send_client_action=function(action)sent=action end
+${fn('VersusModeState.restart_gunner_burst')}
+for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
+ s={possessed=true,breed={name=breed},attack_deadline=10,requested_attack={gunner_combat_range='far'}}
+ local before=requested;VersusModeState.restart_gunner_burst(s);assert(requested==before+1)
+ s.attack_deadline=10;s.requested_attack.gunner_combat_range='melee'
+ VersusModeState.restart_gunner_burst(s);assert(requested==before+1,'do not cancel melee')
+ s.remote_client=true;VersusModeState.restart_gunner_burst(s);assert(sent=='restart_burst' and requested==before+1)
+end
+assert(paused==3)
+gated=true;sent=nil;VersusModeState.restart_gunner_burst(s);assert(sent==nil)
+`);
 run('Melee guide attack selection, geometry and individual settings',`
 local VersusModeState={}
 ${fn('VersusModeState.is_preview_melee')}
@@ -215,7 +240,7 @@ menu=true;mod.toggle_night_vision(true);assert(VersusModeState.night_vision_acti
 mod.toggle_night_vision(true);assert(not VersusModeState.night_vision_active())
 eligible=false;mod.toggle_night_vision(true);assert(not VersusModeState.night_vision_active());eligible=true
 local effect,fill,distance,exposure,tint=VersusModeState.night_vision_tuning()
-assert(effect==1 and fill==4 and distance==60 and exposure==0 and tint==0)
+assert(effect==0.5 and fill==4 and distance==60 and exposure==0 and tint==0)
 local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
 local night_group
 for _,group in ipairs(data.options.widgets)do if group.setting_id=='night_vision_group'then night_group=group end end
@@ -223,9 +248,9 @@ assert(night_group and #night_group.sub_widgets==6)
 local key=night_group.sub_widgets[1]
 assert(key.function_name=='toggle_night_vision' and key.keybind_trigger=='pressed' and key.default_value[1]=='n')
 assert(night_group.sub_widgets[2].default_value==50)
-settings.night_vision_strength=100;assert(VersusModeState.night_vision_tuning()==2)
+settings.night_vision_strength=100;assert(VersusModeState.night_vision_tuning()==1)
 settings.night_vision_strength=0;assert(VersusModeState.night_vision_tuning()==0)
-settings.night_vision_strength=0/0;assert(VersusModeState.night_vision_tuning()==1)
+settings.night_vision_strength=0/0;assert(VersusModeState.night_vision_tuning()==0.5)
 local writes={};local callback;local CLASS={CameraManager={}}
 local ShadingEnvironment={scalar=function()return 1.25 end,set_scalar=function(_,key,v)writes[key]=v end}
 mod.hook=function(_,_,_,f)callback=f end
@@ -249,8 +274,8 @@ Managers.free_flight={is_in_free_flight=function()return true end,camera_positio
 mod.package_status=function()return 'loaded'end
 ${fn('VersusModeState.clear_night_vision')}
 ${fn('VersusModeState.update_night_vision')}
-VersusModeState.update_night_vision(1);assert(alive and intensity==4 and range==60)
-settings.night_vision_strength=100;VersusModeState.update_night_vision(.1);assert(intensity==8)
+VersusModeState.update_night_vision(1);assert(alive and intensity==2 and range==60)
+settings.night_vision_strength=100;VersusModeState.update_night_vision(.1);assert(intensity==4)
 eligible=false;VersusModeState.update_night_vision(1);assert(not mod._night_vision_enabled and not alive)
 eligible=true;VersusModeState.update_night_vision(1);assert(not alive,'returning to Heretics must not auto-enable')
 `);

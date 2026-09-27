@@ -1,4 +1,6 @@
 return {
+    gunner_burst_counter = { en = "Burst: %d / %d shots left — restart burst", ru = "Очередь: осталось %d / %d выстрелов — новая очередь" },
+    gunner_burst_waiting = { en = "Burst: — / — — start burst", ru = "Очередь: — / — — начать очередь" },
     melee_marker_group = { en = "Melee aiming guide — Local", ru = "Точка удара в ближнем бою — локально" },
     melee_marker_tooltip = { en = "Show an aiming guide for this enemy. Gold: reach/area centre; cyan: locked target in reach; orange: ray contact. Animated swings can hit elsewhere. Ranged actions hide the guide.", ru = "Показывать ориентир удара. Золотой: дальность или центр области; голубой: цель в пределах дальности; оранжевый: пересечение луча. Замах может задеть другие точки. При стрельбе указатель скрыт." },
     melee_marker_chaos_ogryn_executor = { en = "Crusher", ru = "Крашер" },
@@ -25,7 +27,7 @@ return {
     night_vision_keybind = { en = "Toggle night vision", ru = "Включить / выключить ночное зрение" },
     night_vision_keybind_tooltip = { en = "Only this key enables night vision, on the Heretic side. Initially OFF. Default: N.", ru = "Включается только этой кнопкой за еретиков. Изначально выключено. По умолчанию: N." },
     night_vision_strength = { en = "Effect strength (%)", ru = "Сила эффекта (%)" },
-    night_vision_strength_tooltip = { en = "50 is the default balanced fill. 0 removes the effect; 100 doubles the configured fill and exposure.", ru = "50 — стандартная подсветка. 0 убирает эффект; 100 удваивает заданную подсветку и экспозицию." },
+    night_vision_strength_tooltip = { en = "50 applies half of the configured fill and exposure. 0 removes the effect; 100 applies the full configured effect.", ru = "50 — половина заданной подсветки и экспозиции. 0 убирает эффект; 100 — полная заданная сила." },
     night_vision_fill = { en = "Fill light intensity", ru = "Интенсивность подсветки" },
     night_vision_distance = { en = "Lighting distance (m)", ru = "Дальность подсветки (м)" },
     night_vision_exposure = { en = "Additional exposure (EV)", ru = "Дополнительная экспозиция (EV)" },

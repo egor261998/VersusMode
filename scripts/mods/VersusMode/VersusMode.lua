@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.15"
+mod.version = "3.0.16"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -16818,6 +16818,8 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
             attack_cancellable = state and state.requested_attack
                 and state.requested_attack.cancellable == true or false,
             attack_label = state and state.requested_attack and state.requested_attack.label or nil,
+            burst_total = state and state.burst_total,
+            burst_remaining = state and state.burst_remaining,
             melee_preview_yaw = state and state.command_aim_yaw,
             melee_preview_pitch = state and state.command_aim_pitch,
             attack_phase = state and state.attack_phase,
@@ -17507,6 +17509,14 @@ function VersusModeState.apply_remote_status(payload)
         state.attack_deadline = payload.attack_active == true and math.huge or nil
         state.remote_attack_cancellable = payload.attack_cancellable == true
         state.remote_attack_label = type(payload.attack_label) == "string" and payload.attack_label or nil
+        local total, remaining = payload.burst_total, payload.burst_remaining
+        if type(total) == "number" and total > 0 and total < math.huge
+            and type(remaining) == "number" and remaining >= 0 and remaining <= total then
+            state.burst_total = math.ceil(total)
+            state.burst_remaining = math.ceil(remaining)
+        else
+            state.burst_total, state.burst_remaining = nil, nil
+        end
         for _, axis in ipairs({ "yaw", "pitch" }) do
             local value = payload["melee_preview_" .. axis]
             state["melee_preview_" .. axis] = type(value) == "number"
@@ -18213,6 +18223,22 @@ local function cycle_control_target(state)
     set_status(state, "LOCKED: " .. target_name(targets[1]), 2)
 end
 
+function VersusModeState.restart_gunner_burst(state)
+    if not state or not state.possessed or not state.breed
+        or not VersusModeState.gunner_breeds[state.breed.name]
+        or state.controlled_traversal then return end
+    if not state.controller_peer_id and control_input_ui_gated(state) then return end
+    if state.remote_client then
+        VersusModeState.send_client_action("restart_burst")
+        return
+    end
+    if state.attack_deadline then
+        if not state.requested_attack or state.requested_attack.gunner_combat_range ~= "far" then return end
+        pause_brain(state)
+    end
+    request_attack_for_state(state, "primary")
+end
+
 function Specialist.toggle_target_lock(state)
     if not state or not state.possessed then
         return
@@ -18505,6 +18531,8 @@ function VersusModeState.receive_remote_action(peer_id, payload)
         cycle_control_target(state)
     elseif payload.action == "target_lock" then
         Specialist.toggle_target_lock(state)
+    elseif payload.action == "restart_burst" then
+        VersusModeState.restart_gunner_burst(state)
     elseif payload.action == "context_traverse"
         or payload.action == "traverse"
         or payload.action == "open_door" then
@@ -20322,6 +20350,14 @@ mod.control_hud_data = function()
     local alternate_text, alternate_kind = attack_display(attacks.alternate)
     local special_text, special_kind = attack_display(attacks.special)
     local action_lines = {}
+    if VersusModeState.gunner_breeds[state.breed.name] then
+        action_lines[#action_lines + 1] = {
+            label = VersusModeState.native_binding_label("weapon_reload"),
+            text = state.burst_total and mod:localize("gunner_burst_counter", state.burst_remaining or 0, state.burst_total)
+                or mod:localize("gunner_burst_waiting"),
+            kind = "normal",
+        }
+    end
     local target_cycle_available, target_lock_available = VersusModeState.target_hud_capabilities(state)
 
     if target_cycle_available then
@@ -20859,7 +20895,7 @@ function VersusModeState.night_vision_tuning()
         if type(value) ~= "number" or value ~= value then value = fallback end
         return math.max(minimum, math.min(maximum, value))
     end
-    return number("night_vision_strength", 50, 0, 100) / 50,
+    return number("night_vision_strength", 50, 0, 100) / 100,
         number("night_vision_fill", 4, 0, 8),
         number("night_vision_distance", 60, 10, 150),
         number("night_vision_exposure", 0, 0, 1),
@@ -21075,6 +21111,12 @@ mod.update = function(dt)
     local state = mod._control
     local input_gated = control_input_ui_gated(state)
 
+    if state and state.possessed and not input_gated and VersusModeState.gunner_breeds[state.breed.name] then
+        local input = VersusModeState.ingame_input_service()
+        if input and VersusModeState.native_input_action(input, "weapon_reload_pressed") then
+            VersusModeState.restart_gunner_burst(state)
+        end
+    end
     VersusModeState.update_vanilla_enemy_input(state, input_gated)
 
     -- Each DMF binding owns an independent timer, even when several actions
@@ -22983,6 +23025,26 @@ mod:hook(BtShootAction, "enter", function(func, self, unit, breed, blackboard, s
         self:_start_aiming(unit, t, scratchpad, action_data)
     end
     return result
+end)
+
+function VersusModeState.record_gunner_burst(state, scratchpad, finished)
+    local total = scratchpad.num_shots
+    if not state or type(total) ~= "number" or total <= 0 or total >= math.huge or total ~= total then return end
+    state.burst_total = math.ceil(total)
+    state.burst_remaining = finished and 0 or math.max(0, state.burst_total - (scratchpad.shots_fired or 0))
+end
+
+mod:hook(MinionAttack, "start_shooting", function(func, unit, scratchpad, t, action_data, ...)
+    local result = func(unit, scratchpad, t, action_data, ...)
+    VersusModeState.record_gunner_burst(VersusModeState.controlled_gunner_shot(unit), scratchpad, false)
+    return result
+end)
+
+mod:hook(MinionAttack, "update_shooting", function(func, unit, scratchpad, t, action_data)
+    local state = VersusModeState.controlled_gunner_shot(unit)
+    local fired, finished = func(unit, scratchpad, t, action_data)
+    VersusModeState.record_gunner_burst(state, scratchpad, finished)
+    return fired, finished
 end)
 
 mod:hook(MinionAttack, "shoot_hit_scan", function(func, world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)

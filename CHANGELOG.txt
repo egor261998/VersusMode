@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.16 - Native burst HUD and night-vision scale (2026-09-27)
+----------------------------------------------------------
+
+- Show native burst shots remaining/total for controlled Scab/Dreg Gunners and Reapers.
+- Standard Reload input restarts their ranged burst, including on clients.
+- Keep native burst sizes and cadence; do not introduce magazines or reserve ammo.
+- Correct night-vision strength: 0 is off, 50 is half, 100 is full configured effect.
+- Add burst accounting and restart regression checks.
+
 3.0.15 - Per-enemy melee aiming guide (2026-09-27)
 ------------------------------------------------
 

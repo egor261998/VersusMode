@@ -1,4 +1,4 @@
-Versus Mode 3.0.15
+Versus Mode 3.0.16
 ==================
 
 Versus Mode lets players join the Heretic Forces and directly control
@@ -32,7 +32,7 @@ Requirements
 - Darktide Mod Loader and Darktide Mod Framework.
 - SoloPlay for locally hosted sessions.
 - Realms for LAN sessions with remote human Heretic players.
-- The host and every participating Realms client must run Versus Mode 3.0.15.
+- The host and every participating Realms client must run Versus Mode 3.0.16.
 
 Realms itself is not modified. Versus Mode uses its supported mod-networking
 bridge and remains host-authoritative.
@@ -41,7 +41,7 @@ bridge and remains host-authoritative.
 Installation
 ------------
 
-1. Extract `VersusMode-3.0.15.zip` into the Darktide `mods` directory.
+1. Extract `VersusMode-3.0.16.zip` into the Darktide `mods` directory.
 2. Confirm this exact path exists:
    `mods/VersusMode/VersusMode.mod`
 3. Add `VersusMode` once to `mods/mod_load_order.txt` after DMF-managed
@@ -150,7 +150,7 @@ Recommended compatibility checks
 10. For each Gunner, fire in Target Lock and free aim, strafe both directions
     during a volley, then use its melee actions. Check that shots follow the
     crosshair and commands work in cover.
-11. Repeat Gunner possession with a matching 3.0.15 Realms client and review
+11. Repeat Gunner possession with a matching 3.0.16 Realms client and review
     both host and client logs for selector, animation, or RPC errors.
 12. Change Specialist camera distance, horizontal offset, and height. Compare
     a Specialist and a controlled Elite in third person; both should respond
@@ -180,7 +180,7 @@ Reporting problems
 When reporting an issue, include both host and client console logs when
 available, the map, controlled breed, action being used, whether Target Lock was
 active, and clear reproduction steps. Confirm every machine reports Versus Mode
-3.0.15 before comparing multiplayer behavior.
+3.0.16 before comparing multiplayer behavior.
 
 Local changes: restricted Heretic roster and nearest target
 -----------------------------------------------------------
@@ -249,29 +249,29 @@ The existing NEXT REINFORCEMENT HUD uses this same authoritative assignment.
 An unconfirmed request shows an error after five seconds and allows retry.
 All module and asset paths remain relative; no machine-specific paths are used.
 
-Built-in night vision in 3.0.15
+Built-in night vision in 3.0.16
 -------------------------------
 Night vision runs only on the Heretic side and needs no extra mod.
 Optics/ramp adapted from Wobin's Preysight: https://github.com/Wobin/Preysight
 Press N to toggle it; starts OFF and resets when leaving the Heretic side.
 Settings > Versus Mode > Night vision contains the rebindable key and sliders.
 Default strength is 50/100, fill intensity 4, distance 60 m, extra exposure 0,
-green tint 0. Strength scales fill and optional exposure from zero to double.
+green tint 0. Strength scales fill and optional exposure from zero to full (50% is half).
 Defaults preserve native exposure and colors; no activation flash, blur, grain
 or dark vignette. Local fill lighting does not restore the map's authored lights.
 Visual brightness still needs validation on dark and bright maps in-game.
 The camera light follows the possessed enemy, not the hidden player shell.
 Preysight and SimpleAssets must not be enabled for this setup.
 
-Per-player Heretic cooldowns (3.0.15)
+Per-player Heretic cooldowns (3.0.16)
 ----------------------------------
 Death locks that enemy breed for 60 seconds for its controller. Other players
 keep their own timers; variants of the same breed share its cooldown.
 Picker cards update the remaining seconds live and unlock automatically.
 The existing general respawn delay still applies. The host enforces both
-selection and spawn checks; install 3.0.15 on the host and all clients.
+selection and spawn checks; install 3.0.16 on the host and all clients.
 
-Psykhanium practice (3.0.15)
+Psykhanium practice (3.0.16)
 --------------------------
 Enable Versus Mode and enter the local Psykhanium. Use the configured Heretic
 roster-menu or enemy-selection key to open cards. Click an enemy to spawn and
@@ -280,7 +280,7 @@ or click Return to Operative. Esc only closes the menu. The possession key also
 releases control. No Realms role assignment is needed; remote clients are not
 supported by this local training path. Regular matches keep their cooldowns.
 
-Heretic team HUD (3.0.15)
+Heretic team HUD (3.0.16)
 ------------------------
 A right-side panel displays human Heretic players, their enemy portraits and
 health, or respawn countdowns. Host snapshots update twice per second.
@@ -294,7 +294,7 @@ They cover cooldowns, packet age, exact spawning, training rollback, night fade,
 HUD cache frequency and controlled Scab/Dreg crosshair shot arguments.
 These checks do not replace host/client testing inside Darktide.
 
-Melee aiming guide (3.0.15)
+Melee aiming guide (3.0.16)
 --------------------------
 Settings > Versus Mode > Melee aiming guide has 20 independent enemy checkboxes,
 all ON by default. Includes melee elites/bosses and kicks/bashes on ranged enemies.
@@ -304,3 +304,13 @@ Idle preview uses the first melee command; an active melee command takes precede
 Ranged commands, menus and release of possession hide the marker.
 Weapon sweeps, moving targets and network delay can change the actual impact;
 this guide does not predict the complete animation or guarantee damage.
+
+Gunner burst counter (3.0.16)
+----------------------------
+Scab/Dreg Gunners and Reapers show remaining/total shots in the native burst.
+Before the first burst is prepared, the display is unknown (-- / --).
+The game's Reload action (normally R, respecting rebinding) starts a new burst.
+It interrupts a current ranged burst but does not interrupt melee or traversal.
+This is a burst restart, not a new magazine, reserve-ammo rule or reload animation.
+The host supplies client counters through the existing 0.15-second status updates.
+Night vision remains key-operated; its 50% default now means half the full effect.
