@@ -167,14 +167,21 @@ VersusModeSpawnView.update = function(self, dt, t, input_service)
         local remaining = mod.spawn_picker_cooldown(self._choices[i])
         local blocked = remaining > 0
         widget.content.hotspot.disabled = blocked or self._selection_submitted
-        widget.content.cooldown = blocked and mod:localize("spawn_picker_cooldown", math.ceil(remaining))
-            or mod:localize("spawn_picker_ready")
-        widget.style.cooldown.text_color = blocked and { 255, 255, 130, 100 } or { 255, 155, 235, 115 }
+        local seconds = blocked and math.ceil(remaining) or 0
+        if widget._cooldown_seconds ~= seconds then
+            widget._cooldown_seconds = seconds
+            widget.content.cooldown = blocked and mod:localize("spawn_picker_cooldown", seconds)
+                or mod:localize("spawn_picker_ready")
+        end
+        local color = widget.style.cooldown.text_color
+        color[1], color[2], color[3], color[4] = 255, blocked and 255 or 155, blocked and 130 or 235, blocked and 100 or 115
         local selected = i == self._selected
         widget.content.selected = selected
-        widget.style.background.color = blocked and { 230, 55, 30, 30 }
-            or selected and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
-        widget.style.frame.color = selected and { 255, 155, 235, 115 } or { 255, 83, 105, 87 }
+        color = widget.style.background.color
+        color[1], color[2] = not blocked and selected and 245 or 230, blocked and 55 or selected and 63 or 31
+        color[3], color[4] = blocked and 30 or selected and 93 or 43, blocked and 30 or selected and 53 or 40
+        color = widget.style.frame.color
+        color[1], color[2], color[3], color[4] = 255, selected and 155 or 83, selected and 235 or 105, selected and 115 or 87
     end
     return pass_input, pass_draw
 end

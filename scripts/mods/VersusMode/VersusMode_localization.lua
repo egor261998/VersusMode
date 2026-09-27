@@ -1,4 +1,11 @@
 return {
+    heretic_team_alive = { en = "Alive", ru = "Жив" },
+    heretic_team_dead = { en = "Dead", ru = "Мёртв" },
+    heretic_team_respawning = { en = "Respawning", ru = "Возрождается" },
+    show_operative_health = { en = "Operative health and toughness", ru = "Здоровье и стойкость оперативников" },
+    show_operative_health_tooltip = { en = "While controlling a Heretic, show health and toughness above visible Operatives. Bonus toughness is gold. Hidden and occluded players are not shown.", ru = "При управлении еретиком показывать здоровье и стойкость над видимыми оперативниками. Дополнительная стойкость — золотая. Невидимые игроки и игроки за препятствиями не отображаются." },
+    operative_health_value = { en = "HP %d / %d", ru = "ХП %d / %d" },
+    operative_toughness_value = { en = "Toughness %d / %d", ru = "Стойкость %d / %d" },
     specialist_panel_preparation = { en = "Firing in: %.1f s", ru = "До выстрела: %.1f с" },
     sniper_shot_delay = { en = "Sniper shot preparation — Host (seconds)", ru = "Подготовка выстрела снайпера — хост (секунды)" },
     sniper_shot_delay_tooltip = { en = "Host only: 1–3 seconds from the fire command to the shot, in 0.5-second steps. Applies to all controlled Snipers, including preparation already in progress. Separate from shot cooldown; client settings are ignored.", ru = "Только хост: от 1 до 3 секунд от команды на выстрел до выстрела, шаг 0,5. Применяется ко всем снайперам под управлением игроков, включая уже начатую подготовку. Не меняет КД между выстрелами; настройка клиента игнорируется." },
@@ -729,6 +736,14 @@ return {
         en = "Advanced & Experimental Features",
         ["zh-cn"] = "高级与实验功能",
         ["zh-tw"] = "進階與實驗功能",
+    },
+    enable_extended_spawn_search = {
+        ru = "Резервный поиск спавна до 200 м",
+        en = "Fallback spawn search up to 200 m",
+    },
+    enable_extended_spawn_search_tooltip = {
+        ru = "Настройка хоста. Если обычный и резервный поиск рядом не нашли подходящего места, расширяет поиск до 200 метров. Выбирает ближайшую подходящую точку. Проверки пола, навигации, запрещённых зон и высоты потолка сохраняются. По умолчанию выключено.",
+        en = "Host setting. Expands the search to 200 metres only after both normal and fallback nearby searches fail. Chooses the nearest suitable point and keeps ground, navigation, forbidden-zone and headroom checks. Disabled by default.",
     },
     enable_random_safe_spawn = {
         ru = "Использовать скрытое появление",

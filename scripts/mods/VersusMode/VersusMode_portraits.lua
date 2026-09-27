@@ -146,6 +146,30 @@ function portraits.build(breed)
 end
 
 local unavailable = {}
+local function draw_packed(renderer, photo, left, top, scale, layer)
+    -- Match UIRenderer.draw_rect's immediate Gui2 path, but prepare invariant
+    -- render settings once per portrait. No retained objects or cross-frame vectors.
+    local settings = renderer.render_settings or {}
+    local ui_scale = renderer.scale
+    local position = Gui.scale_vector3(Vector3(0, 0, layer), ui_scale)
+    position[3] = position[3] + (settings.start_layer or 0)
+    local size = Vector3(0, 0, 0)
+    local color = Color(255 * (settings.alpha_multiplier or 1), 0, 0, 0)
+    local intensity = settings.color_intensity_multiplier or 1
+    local options = { color = color, snap_pixel_positions = settings.snap_pixel_positions == true and ui_scale >= 1 }
+    if renderer.base_render_pass then
+        options.render_pass = renderer.base_render_pass .. (settings.hdr and "_hdr" or "")
+    end
+    local draw, byte = Gui2.rect, string.byte
+    for i = 1, #photo.packed, 7 do
+        local x, y, w, h, r, g, b = byte(photo.packed, i, i + 6)
+        position[1], position[2] = (left + x * scale) * ui_scale, (top + y * scale) * ui_scale
+        size[1], size[2] = w * scale * ui_scale, h * scale * ui_scale
+        color[2], color[3], color[4] = r * intensity, g * intensity, b * intensity
+        draw(renderer.gui, position, size, options)
+    end
+end
+
 function portraits.draw(_, renderer, style, content, position, size)
     local breed = content.portrait_breed or "unknown"
     local photo = content.use_imported_portrait and imported_portrait(breed)
@@ -160,12 +184,17 @@ function portraits.draw(_, renderer, style, content, position, size)
             if Script and Script.temp_count and Script.set_temp_count then
                 vectors, quaternions, matrices = Script.temp_count()
             end
-            for i = 1, #photo.packed, 7 do
-                local x, y, w, h, r, g, b = string.byte(photo.packed, i, i + 6)
-                UIRenderer.draw_rect(renderer,
-                    Vector3(left + x * scale, top + y * scale, position[3]),
-                    Vector3(w * scale, h * scale, 0), Color(255, r, g, b))
+            if Gui2 and Gui2.rect and Gui and Gui.scale_vector3 and renderer.scale then
+                draw_packed(renderer, photo, left, top, scale, position[3])
                 if vectors then Script.set_temp_count(vectors, quaternions, matrices) end
+            else
+                for i = 1, #photo.packed, 7 do
+                    local x, y, w, h, r, g, b = string.byte(photo.packed, i, i + 6)
+                    UIRenderer.draw_rect(renderer,
+                        Vector3(left + x * scale, top + y * scale, position[3]),
+                        Vector3(w * scale, h * scale, 0), Color(255, r, g, b))
+                    if vectors then Script.set_temp_count(vectors, quaternions, matrices) end
+                end
             end
         else
             -- Support portrait data already loaded before a mod update.
