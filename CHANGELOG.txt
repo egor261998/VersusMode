@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.38 - Supplied selection portraits (2026-09-27)
+------------------------------------------------
+
+- Map 30 supplied JPG portraits to enemy selection cards, including variant aliases.
+- Include original images and a reproducible relative-path Lua preview converter.
+- Preserve aspect ratio and existing HUD portraits; fall back when imported data is unavailable.
+
 3.0.37 - Direct combat only (2026-09-27)
 ---------------------------------------
 

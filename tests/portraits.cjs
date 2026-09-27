@@ -2,13 +2,15 @@ const fs=require('fs'),path=require('path');
 const {lua,lauxlib,lualib,to_luastring,to_jsstring}=require('fengari');
 const root=path.resolve(__dirname,'..');
 const source=fs.readFileSync(path.join(root,'scripts/mods/VersusMode/VersusMode_portraits.lua'),'utf8');
+const importedSource=fs.readFileSync(path.join(root,'scripts/mods/VersusMode/VersusMode_portrait_images.lua'),'utf8');
 const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);
 const code=`
 local texture_calls,rect_calls=0,0;local fail=false;local force=false
 local renderer={draw_texture=function()texture_calls=texture_calls+1;if fail then error('missing material')end end,
 draw_rect=function(_,pos,size)assert(pos[1]==pos[1] and size[1]>0 and size[2]>0);rect_calls=rect_calls+1 end}
 function require()return renderer end
-function get_mod()return {get=function()return force end}end
+local imported=(function()${importedSource} end)()
+function get_mod()return {get=function()return force end,io_dofile=function()return imported end}end
 Application={can_get_resource=function()return true end}
 function Vector3(...)return {...}end
 function Color(...)return {...}end
@@ -26,6 +28,18 @@ for breed in pairs(portraits.profiles)do
  result[#result+1]='"'..breed..'":['..table.concat(encoded,',')..']'
 end
 assert(n==31)
+for breed in pairs(portraits.profiles)do
+ local p=assert(imported[breed],breed);local area=0
+ assert(#p.runs<=2048)
+ for _,r in ipairs(p.runs)do
+  assert(r[1]>=0 and r[2]>=0 and r[1]+r[3]<=p.width and r[2]+r[4]<=p.height)
+  area=area+r[3]*r[4]
+ end
+ assert(area==p.width*p.height)
+end
+portraits.draw(nil,{},nil,{portrait_breed='chaos_ogryn_executor',portrait='native',use_imported_portrait=true},{0,0,1},{110,110})
+assert(rect_calls==#imported.chaos_ogryn_executor.runs and texture_calls==0)
+rect_calls=0
 local content={portrait_breed='renegade_gunner',portrait='native'}
 portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(texture_calls==1 and rect_calls==0)
 force=true;portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(rect_calls>0 and texture_calls==1)

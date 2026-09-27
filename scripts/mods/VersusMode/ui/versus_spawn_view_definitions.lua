@@ -53,7 +53,7 @@ for i = 1, MAX_CARDS do
             style = { size = { 110, 110 }, offset = { 60, 10, 2 }, color = { 255, 255, 255, 255 } }, visibility_function = visible },
         { pass_type = "text", value_id = "text", value = "", style = label_style, visibility_function = visible },
         { pass_type = "text", value_id = "cooldown", style_id = "cooldown", value = "", style = cooldown_style, visibility_function = visible },
-    }, name, { visible = false })
+    }, name, { visible = false, use_imported_portrait = true })
 end
 for _, name in ipairs({ "cancel" }) do
     node(name, 700, 950, 400, 60)
