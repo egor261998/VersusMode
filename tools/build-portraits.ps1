@@ -1,3 +1,4 @@
+param([string]$NodeExecutable = 'node')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $repo = Split-Path $PSScriptRoot -Parent
@@ -49,3 +50,5 @@ foreach ($entry in $map.PSObject.Properties) {
 }
 [void]$lua.Append("return images`r`n")
 [IO.File]::WriteAllText((Join-Path $repo 'scripts/mods/VersusMode/VersusMode_portrait_images.lua'), $lua.ToString(), [Text.UTF8Encoding]::new($false))
+& $NodeExecutable (Join-Path $PSScriptRoot 'optimize-portraits.cjs')
+if ($LASTEXITCODE -ne 0) { throw 'Portrait draw-budget optimization failed' }

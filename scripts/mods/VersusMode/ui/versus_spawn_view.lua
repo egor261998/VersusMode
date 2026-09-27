@@ -171,6 +171,7 @@ VersusModeSpawnView.update = function(self, dt, t, input_service)
             or mod:localize("spawn_picker_ready")
         widget.style.cooldown.text_color = blocked and { 255, 255, 130, 100 } or { 255, 155, 235, 115 }
         local selected = i == self._selected
+        widget.content.selected = selected
         widget.style.background.color = blocked and { 230, 55, 30, 30 }
             or selected and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
         widget.style.frame.color = selected and { 255, 155, 235, 115 } or { 255, 83, 105, 87 }

@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.59"
+mod.version = "3.0.60"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -9733,6 +9733,7 @@ local function pause_brain(state)
     state.consume_attempt_complete = nil
     state.sniper_shot_fired = nil
     state.sniper_shot_stop_t = nil
+    state.sniper_shot_ready_at = nil
     state.sniper_laser_active = nil
     state.grenade_committed_solution = nil
     state.grenade_throw_complete = nil
@@ -17992,6 +17993,7 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
             state.sniper_laser_active = nil
             state.sniper_shot_fired = nil
             state.sniper_shot_stop_t = nil
+            state.sniper_shot_ready_at = t + 1
             state.attack_min_until = t + setting("attack_burst_duration")
             state.attack_deadline = t + setting("attack_acquire_timeout")
             state.attack_hard_deadline = t + setting("attack_acquire_timeout") + 10
@@ -24458,6 +24460,13 @@ mod:hook(BtSniperShootAction, "_update_aiming", function(func, self, unit, t, dt
     if state and state.unit == unit and state.breed.name == SNIPER_BREED_NAME
         and state.attack_deadline and attack and not attack.laser_only
         and update_controlled_sniper_aim(self, state, unit, scratchpad, action_data) then
+        state.sniper_shot_ready_at = state.sniper_shot_ready_at or (t + 1)
+        if t < state.sniper_shot_ready_at then
+            scratchpad.shoot_state = "aiming"
+            scratchpad.shoot_at_t = nil
+            state.attack_phase = "AIMING"
+            return
+        end
         scratchpad.shoot_at_t = nil
         scratchpad.next_threat_timing = nil
         scratchpad.scope_reflection_timing = nil

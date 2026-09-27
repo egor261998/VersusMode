@@ -13,6 +13,11 @@ Imported portraits are used in the selection cards and the bottom-left controlle
 enemy panel. The team HUD retains lightweight portraits. Missing data uses the old fallback.
 No external file paths or additional mods are required at runtime.
 
-In-game frame-time impact has not been measured. Each preview uses up to 9342
+In-game frame-time impact has not been measured. Each preview uses at most 2048
 rectangles; invisible cards are not drawn. A compiled texture atlas would be
 preferable if a compatible custom resource loading pipeline becomes available.
+
+The offline optimizer keeps the 96-pixel grid and splits high-contrast regions
+more finely while averaging flatter areas, with a strict 2048-rectangle limit.
+This is lossy compression; no retained GUI objects or runtime image decoding
+are introduced. Node.js is required only when rebuilding the portraits.

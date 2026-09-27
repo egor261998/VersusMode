@@ -94,6 +94,21 @@ assert(hook(resolve,inventory,'dust',nil,'renegade_captain',123)=='dust')
 enabled=false;assert(hook(resolve,inventory,'dust',nil,'renegade_twin_captain',123)=='dust')
 assert(inventory.default~=inventory.havoc_twin_visual_loadout)
 `);
+run('Controlled sniper waits one second after fire command',`
+local hook;local BtSniperShootAction={};local SNIPER_BREED_NAME='sniper'
+local state={unit=1,breed={name='sniper'},attack_deadline=30,requested_attack={},sniper_shot_ready_at=11}
+local VersusModeState={control_for_unit=function()return state end}
+local mod={hook=function(_,_,_,f)hook=f end}
+local function update_controlled_sniper_aim()return true end
+${source.slice(source.indexOf('mod:hook(BtSniperShootAction, "_update_aiming"'),source.indexOf('mod:hook(BtSniperShootAction, "enter"'))}
+local shots=0;local action={_start_shooting=function()shots=shots+1 end};local pad={}
+for _,t in ipairs({10,10.5,10.99})do hook(function()error('unexpected native path')end,action,1,t,0,pad,{});assert(shots==0)end
+hook(function()end,action,1,11,0,pad,{});assert(shots==1)
+state.requested_attack.laser_only=true
+hook(function()end,action,1,20,0,pad,{});assert(shots==1)
+state=nil;local native=false
+hook(function()native=true end,action,1,21,0,pad,{});assert(native)
+`);
 run('Controlled plasma charges for one second in both aim modes',`
 local hooks={};local current
 local mod={hook=function(_,_,name,f)hooks[name]=f end}

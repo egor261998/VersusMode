@@ -1,3 +1,9 @@
+3.0.60
+- Add a one-second preparation before controlled Sniper shots; keep shot cooldown separate.
+- Bound imported portraits to 2048 rectangles while retaining the 96-pixel grid.
+- Update card hover feedback during drawing; do not use retained portrait geometry.
+- Runtime responsiveness and renderer stability still need in-game verification.
+
 3.0.59
 - Replace camera point light with six local shadowless directional fill lights.
 - Remove night-vision exposure and distance controls; keep default strength at 50%.
