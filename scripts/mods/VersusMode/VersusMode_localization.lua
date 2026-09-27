@@ -2146,9 +2146,9 @@ return {
         ["zh-cn"] = "吞噬",
         ["zh-tw"] = "吞噬",
     },
-    spawn_scab_lieutenant = {
-        ru = "Скаб-лейтенант",
-        en = "Scab Lieutenant",
+    spawn_scab_captain = {
+        ru = "Скаб-капитан",
+        en = "Scab Captain",
     },
     hud_attack_spit_out = {
         ru = "Выплюнуть",

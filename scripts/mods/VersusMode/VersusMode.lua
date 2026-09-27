@@ -130,7 +130,7 @@ local VersusModeState = {
         { name = "chaos_ogryn_houndmaster", label = "Houndmaster" },
         { name = "chaos_daemonhost", label = "Daemonhost" },
         { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost", label_key = "melee_marker_chaos_mutator_daemonhost" },
-        { name = "renegade_captain", label = "Scab Lieutenant", label_key = "spawn_scab_lieutenant" },
+        { name = "renegade_captain", label = "Scab Captain", label_key = "spawn_scab_captain" },
         { name = "cultist_captain", label = "Dreg Captain" },
     },
     -- Manual boss selection does not enable automatic takeover of map bosses.
