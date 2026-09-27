@@ -6,6 +6,27 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Controlled plasma charges for one second in both aim modes',`
+local hooks={};local current
+local mod={hook=function(_,_,name,f)hooks[name]=f end}
+local BtShootAction={}
+local VersusModeState={control_for_unit=function()return current end}
+local Specialist={shotgun_aim_animation=function(_,_,_,data)return data end}
+local MinionAttack={aim_at_target=function()end}
+local MinionMovement={set_anim_rotation_driven=function(s,v)s.is_anim_rotation_driven=v end}
+${source.slice(source.indexOf('mod:hook(BtShootAction, "_start_aiming"'),source.indexOf('-- Ranged actions can hand control'))}
+for _,locked in ipairs({true,false})do
+ current={unit=1,attack_deadline=20,breed={name='renegade_plasma_gunner'},requested_attack={shotgun_combat_range='close'},grenadier_target_lock=locked}
+ local pad={};local data={before_shoot_effect_template_timing=2}
+ hooks._start_aiming(function()end,{},1,10,pad,data)
+ local action={_start_shooting=function(_,_,t,s)s.next_shoot_timing=t+4 end}
+ hooks._update_aiming(function()error('unexpected native aiming delay')end,action,1,10.1,pad,data,{})
+ assert(pad.next_shoot_timing==11 and data.before_shoot_effect_template_timing==2)
+end
+current=nil;local called=false
+hooks._update_aiming(function()called=true end,{},1,10,{}, {},{})
+assert(called)
+`);
 run('Beast queued F completes Consume before selecting Spit Out',`
 local Specialist={};local hooks={};local state
 local function valid_player_target(u)return u=='player' end

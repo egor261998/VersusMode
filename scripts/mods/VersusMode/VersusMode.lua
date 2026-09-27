@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.50"
+mod.version = "3.0.51"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -23439,7 +23439,11 @@ end
 mod:hook(BtShootAction, "_start_aiming", function(func, self, unit, t, scratchpad, action_data)
     local state = VersusModeState.control_for_unit(unit)
     local directed_action = Specialist.shotgun_aim_animation(state, unit, scratchpad, action_data)
-    return func(self, unit, t, scratchpad, directed_action)
+    local result = func(self, unit, t, scratchpad, directed_action)
+    scratchpad.versus_plasma_shot_at = state and state.unit == unit and state.attack_deadline
+        and state.breed.name == "renegade_plasma_gunner" and state.requested_attack
+        and state.requested_attack.shotgun_combat_range == "close" and (t + 1) or nil
+    return result
 end)
 
 -- Enter shooting through the native action so weapon setup and burst cadence
@@ -23447,6 +23451,25 @@ end)
 mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchpad, action_data, breed)
     local state = VersusModeState.control_for_unit(unit)
     local attack = state and state.requested_attack
+
+    if state and state.unit == unit and state.attack_deadline
+        and state.breed.name == "renegade_plasma_gunner"
+        and attack and attack.shotgun_combat_range == "close" then
+        MinionAttack.aim_at_target(unit, scratchpad, t, action_data, breed)
+        scratchpad.rotation_duration = nil
+        scratchpad.start_rotation_timing = nil
+        if scratchpad.is_anim_rotation_driven then
+            MinionMovement.set_anim_rotation_driven(scratchpad, false)
+        end
+        local shot_at = scratchpad.versus_plasma_shot_at or (t + 1)
+        self:_start_shooting(unit, t, scratchpad, action_data)
+        scratchpad.next_shoot_timing = shot_at
+        if action_data.before_shoot_effect_template_timing then
+            scratchpad.before_shoot_effect_template_timing = t
+        end
+        state.attack_phase = "WINDING UP"
+        return
+    end
 
     if not state or state.unit ~= unit or not state.attack_deadline
         or not (VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name])

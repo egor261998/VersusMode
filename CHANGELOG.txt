@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.51 - Plasma charge time (2026-09-27)
+--------------------------------------
+
+- Schedule controlled plasma shots one second after aiming starts, in both target-lock modes.
+- Preserve native weapon setup and effects without modifying shared action settings.
+
 3.0.50 - Queued Beast release (2026-09-27)
 -----------------------------------------
 
