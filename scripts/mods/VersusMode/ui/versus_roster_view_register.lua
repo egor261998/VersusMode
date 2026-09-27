@@ -10,6 +10,9 @@ mod:register_view({
     view_name = VIEW_NAME,
     view_settings = {
         class = "VersusModeRosterView",
+        validation_function = function()
+            return mod.prepare_versus_view("versus_mode_roster_view")
+        end,
         disable_game_world = false,
         game_world_blur = 0.8,
         init_view_function = function()
@@ -47,6 +50,9 @@ mod:register_view({
     view_name = VIEW_NAME,
     view_settings = {
         class = "VersusModeSpawnView",
+        validation_function = function()
+            return mod.prepare_versus_view("versus_mode_spawn_view")
+        end,
         disable_game_world = false,
         game_world_blur = 0.8,
         init_view_function = function()

@@ -445,12 +445,36 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.29"
+mod.version = "3.0.30"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
 mod._realms_compat = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_realms")
 mod._portraits = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_portraits")
+if type(mod._portraits) ~= "table" or type(mod._portraits.draw) ~= "function" then
+    mod._portraits = { draw = function(_, renderer, style, content, position, size)
+        local renderer_api = require("scripts/managers/ui/ui_renderer")
+        renderer_api.draw_texture(renderer, "content/ui/materials/dividers/skull_rendered_center_01",
+            position, size, Color(255, 255, 255, 255))
+    end }
+    mod:warning("Portrait module unavailable; using built-in fallback portraits.")
+end
+
+mod._view_definitions = {}
+function mod.prepare_versus_view(view_name)
+    if mod._view_definitions[view_name] then return true end
+    local file = view_name == "versus_mode_spawn_view" and "versus_spawn_view_definitions"
+        or view_name == "versus_mode_roster_view" and "versus_roster_view_definitions"
+    if not file then return false end
+    local ok, definitions = pcall(mod.io_dofile, mod, "VersusMode/scripts/mods/VersusMode/ui/" .. file)
+    if not ok or type(definitions) ~= "table" or type(definitions.scenegraph_definition) ~= "table"
+        or type(definitions.widget_definitions) ~= "table" then
+        mod:error("Cannot open %s: invalid or unavailable view definitions (%s).", view_name, tostring(definitions))
+        return false
+    end
+    mod._view_definitions[view_name] = definitions
+    return true
+end
 
 VersusModeState.ensure_free_flight_manager()
 

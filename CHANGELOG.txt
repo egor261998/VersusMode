@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.30 - Safe custom view initialization (2026-09-27)
+---------------------------------------------------
+
+- Validate and cache view definitions before opening spawn and roster menus.
+- Reject failed loads before the UI handler creates an incomplete view; allow retries.
+- Use a built-in portrait fallback when the portrait module is unavailable.
+
 3.0.29 - Specialist cooldown in health panel (2026-09-27)
 -------------------------------------------------------
 

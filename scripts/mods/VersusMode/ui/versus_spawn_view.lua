@@ -1,9 +1,10 @@
 local mod = get_mod("VersusMode")
-local definitions = mod:io_dofile("VersusMode/scripts/mods/VersusMode/ui/versus_spawn_view_definitions")
+local definitions
 
 VersusModeSpawnView = class("VersusModeSpawnView", "BaseView")
 
 VersusModeSpawnView.init = function(self, settings)
+    definitions = mod._view_definitions.versus_mode_spawn_view
     VersusModeSpawnView.super.init(self, definitions, settings)
 end
 

@@ -1,5 +1,5 @@
 local mod = get_mod("VersusMode")
-local definitions = mod:io_dofile("VersusMode/scripts/mods/VersusMode/ui/versus_roster_view_definitions")
+local definitions
 
 VersusModeRosterView = class("VersusModeRosterView", "BaseView")
 
@@ -13,6 +13,7 @@ local READY_COLOR = { 255, 120, 235, 145 }
 local NORMAL_COLOR = { 255, 200, 207, 195 }
 
 VersusModeRosterView.init = function(self, settings)
+    definitions = mod._view_definitions.versus_mode_roster_view
     VersusModeRosterView.super.init(self, definitions, settings)
 end
 

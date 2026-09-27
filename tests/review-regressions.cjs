@@ -5,6 +5,36 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+run('View preflight rejects failed definitions and retries safely',`
+local result=false;local raises=false;local loads=0;local errors=0
+local mod={_view_definitions={},io_dofile=function()loads=loads+1;if raises then error('load error')end;return result end,
+error=function()errors=errors+1 end}
+${fn('mod.prepare_versus_view')}
+assert(not mod.prepare_versus_view('versus_mode_spawn_view'))
+assert(mod._view_definitions.versus_mode_spawn_view==nil)
+raises=true;assert(not mod.prepare_versus_view('versus_mode_spawn_view'));raises=false
+result={};assert(not mod.prepare_versus_view('versus_mode_spawn_view'))
+result={scenegraph_definition={},widget_definitions={}}
+assert(mod.prepare_versus_view('versus_mode_spawn_view'));assert(loads==4 and errors==3)
+assert(mod.prepare_versus_view('versus_mode_spawn_view') and loads==4)
+assert(not mod.prepare_versus_view('inventory_view') and loads==4)
+`);
+run('Spawn definitions survive unavailable portrait modules',`
+local icon_module;local mod={};function get_mod()return mod end
+function require(name)
+ if name:find('ui_widget',1,true)then return {create_definition=function(passes,scene,content)return {passes=passes}end}end
+ return {body={}}
+end
+table.clone=function(t)local copy={};for k,v in pairs(t)do copy[k]=v end;return copy end
+local function build() ${fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')} end
+for _,value in ipairs({false,{}, {draw=false},{draw=function()end}})do
+ mod._portraits=value;local definitions=build()
+ assert(definitions.max_cards==28)
+ local portrait=definitions.widget_definitions.enemy_1.passes[4]
+ assert(portrait.pass_type==(type(value)=='table' and type(value.draw)=='function' and 'logic' or 'texture'))
+end
+mod._portraits=nil;assert(build().widget_definitions.enemy_1.passes[4].pass_type=='texture')
+`);
 const stateTable=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='VersusModeState')).init[0];
 const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
 run('Expanded roster fits all cards and preserves unique choices',`

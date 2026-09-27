@@ -1,6 +1,7 @@
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local UIFontSettings = require("scripts/managers/ui/ui_font_settings")
 local portraits = get_mod("VersusMode")._portraits
+local draw_portrait = type(portraits) == "table" and type(portraits.draw) == "function" and portraits.draw
 
 local MAX_CARDS = 28
 local COLUMNS = 7
@@ -47,7 +48,8 @@ for i = 1, MAX_CARDS do
         { pass_type = "rect", style_id = "background", style = { color = { 230, 31, 43, 40 } }, visibility_function = visible },
         { pass_type = "texture", value = "content/ui/materials/frames/frame_tile_2px", style_id = "frame",
             style = { color = { 255, 83, 105, 87 }, scale_to_material = true, offset = { 0, 0, 1 } }, visibility_function = visible },
-        { pass_type = "logic", value_id = "draw_portrait", value = portraits.draw,
+        { pass_type = draw_portrait and "logic" or "texture", value_id = draw_portrait and "draw_portrait" or "portrait",
+            value = draw_portrait or "content/ui/materials/dividers/skull_rendered_center_01",
             style = { size = { 110, 110 }, offset = { 60, 10, 2 }, color = { 255, 255, 255, 255 } }, visibility_function = visible },
         { pass_type = "text", value_id = "text", value = "", style = label_style, visibility_function = visible },
         { pass_type = "text", value_id = "cooldown", style_id = "cooldown", value = "", style = cooldown_style, visibility_function = visible },
