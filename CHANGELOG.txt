@@ -1,3 +1,9 @@
+3.0.59
+- Replace camera point light with six local shadowless directional fill lights.
+- Remove night-vision exposure and distance controls; keep default strength at 50%.
+- Move allied Heretic panels to the bottom-right and enlarge imported portraits to 100x100.
+- Lighting appearance and GPU cost still require in-game verification.
+
 3.0.58
 - Bosses are takeover-only; excluded from reinforcement spawning.
 - Death offers five random non-boss enemies, chosen by the host; respawn waits for selection.

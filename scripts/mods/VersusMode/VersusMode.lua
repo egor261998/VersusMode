@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.58"
+mod.version = "3.0.59"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -498,8 +498,6 @@ local vector3_up = Vector3.up
 local DEFAULTS = {
     night_vision_strength = 50,
     night_vision_fill = 4,
-    night_vision_distance = 60,
-    night_vision_exposure = 0,
     night_vision_tint = 0,
     selection_range = 50,
     move_speed_percent = 90,
@@ -21162,22 +21160,17 @@ function VersusModeState.night_vision_tuning()
     end
     return number("night_vision_strength", 50, 0, 100) / 100,
         number("night_vision_fill", 4, 0, 8),
-        number("night_vision_distance", 60, 10, 150),
-        number("night_vision_exposure", 0, 0, 1),
+        0, -- Global lighting has no distance limit.
+        0, -- Never override exposure, including legacy saved settings.
         number("night_vision_tint", 0, 0, 100) / 100
 end
 
--- Local fill lighting, not exposure: UI and existing bright light sources keep
--- their native tone mapping. The light is never spawned through the network.
+-- Six shadowless directional lights approximate ambient fill without distance
+-- attenuation. They are local only and never change the shading environment.
 function VersusModeState.clear_night_vision()
-    if mod._night_vision then mod._night_vision.optics.reset() end
-    local light = mod._night_vision_light
-    mod._night_vision_light = nil
-    if not light then return end
-    local worlds = Managers.world
-    if worlds and worlds:has_world("level_world")
-        and worlds:world("level_world") == light.world and Unit.alive(light.unit) then
-        World.destroy_unit(light.world, light.unit)
+    if mod._night_vision then
+        mod._night_vision.optics.reset()
+        mod._night_vision.lighting.clear()
     end
 end
 
@@ -21186,67 +21179,27 @@ function VersusModeState.update_night_vision(dt)
     if not setting("enable_versus_mode") or not VersusModeState.local_infected_view() then
         mod._night_vision_enabled = false
     end
-    local effect, fill, distance, exposure, tint = VersusModeState.night_vision_tuning()
+    local effect, fill, _, _, tint = VersusModeState.night_vision_tuning()
     vision.tint = math.min(1, tint * effect)
-    vision.optics.set_tuning(exposure * effect, 0, 0, 0.3, 0.6)
+    vision.optics.set_tuning(0, 0, 0, 0.3, 0.6)
     local flight = Managers.free_flight
     local camera_active = flight and flight:is_in_free_flight()
-    vision.optics.set_target(VersusModeState.night_vision_active() and camera_active and 1 or 0)
+    local menu_active = Managers.ui and Managers.ui:has_active_view()
+    vision.optics.set_target(VersusModeState.night_vision_active() and camera_active and not menu_active and 1 or 0)
     vision.optics.update(dt or 0)
     local worlds = Managers.world
     local world = worlds and worlds:has_world("level_world") and worlds:world("level_world")
-    local strength = vision.optics.weight()
-    if not world or strength == 0 then
+    local strength = vision.optics.weight() * effect * fill
+    if not world or not camera_active or menu_active or strength <= 0 then
+        vision.lighting.clear()
+        return
+    end
+    local ok, position = pcall(flight.camera_position_rotation, flight, "global")
+    if not ok or not position then
         VersusModeState.clear_night_vision()
         return
     end
-    if not camera_active then
-        -- Camera has returned to the Operative: fade optics without retaining a world light.
-        local light = mod._night_vision_light
-        mod._night_vision_light = nil
-        if light and light.world == world and Unit.alive(light.unit) then World.destroy_unit(world, light.unit) end
-        vision.optics.set_target(0)
-        return
-    end
-    local ok, position, rotation = pcall(flight.camera_position_rotation, flight, "global")
-    if not ok or not position or not rotation then
-        VersusModeState.clear_night_vision()
-        return
-    end
-    local resource = "content/weapons/player/attachments/flashlights/flashlight_01/flashlight_01"
-    if mod:package_status(resource) ~= "loaded" then return end
-    local light = mod._night_vision_light
-    if light and (light.world ~= world or not Unit.alive(light.unit)) then
-        VersusModeState.clear_night_vision()
-        light = nil
-    end
-    if not light then
-        local unit = World.spawn_unit_ex(world, resource, nil, position)
-        if Unit.num_lights(unit) < 1 then
-            World.destroy_unit(world, unit)
-            return
-        end
-        local source = Unit.light(unit, 1)
-        light = {world = world, unit = unit, source = source}
-        mod._night_vision_light = light
-        for i = 1, Unit.num_meshes(unit) do Unit.set_mesh_visibility(unit, i, false) end
-        Light.set_type(source, "omni")
-        Light.set_spot_reflector(source, false)
-        Light.set_casts_shadows(source, false)
-        Light.set_volumetric_intensity(source, 0)
-        Light.set_falloff_start(source, 0)
-        Light.set_falloff_end(source, 15)
-        Light.set_color_filter(source, Vector3(1, 1, 1))
-        Light.set_correlated_color_temperature(source, 6500)
-        Light.set_enabled(source, true)
-    end
-    position = position + Quaternion.forward(rotation) * (-1.5)
-        + vector3_up() * (1.5)
-    Unit.set_local_position(light.unit, 1, position)
-    Unit.set_local_rotation(light.unit, 1, rotation)
-    Light.set_falloff_end(light.source, distance)
-    Light.set_intensity(light.source, strength * fill * effect)
-    World.update_unit(world, light.unit)
+    vision.lighting.update(world, position, strength)
 end
 
 function VersusModeState.team_hud_snapshot()
@@ -27054,6 +27007,7 @@ mod:register_hud_element({
 })
 
 mod._night_vision = {}
+mod._night_vision.lighting = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_lighting")
 mod:register_hud_element({
     class_name = "HudElementVersusMeleeMarker",
     filename = "VersusMode/scripts/mods/VersusMode/VersusMode_melee_hud",
