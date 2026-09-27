@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.1.1"
+mod.version = "3.1.2"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -7314,12 +7314,16 @@ function VersusModeState.detach_observer_player_units(role)
                 was_followed = ok and followed == true or was_followed
             end
 
-            pcall(
-                first_person_extension.set_camera_follow_target,
-                first_person_extension,
-                false,
-                false
-            )
+            -- The setter resets its aim interpolator. Already detached units
+            -- need no reset on every pre/post camera update.
+            if was_followed or first_person_extension._is_first_person_spectated then
+                pcall(
+                    first_person_extension.set_camera_follow_target,
+                    first_person_extension,
+                    false,
+                    false
+                )
+            end
 
             if was_followed then
                 detached = detached + 1
@@ -7333,6 +7337,17 @@ end
 -- Survivor damage moods are a separate camera path from exclusive player FX.
 -- Transition the native MoodHandler through removing -> inactive once, then
 -- keep its camera blend empty for as long as the infected role owns the view.
+function VersusModeState.remove_isolated_observer_moods(role, handler, unit)
+    -- Complete local sound/particle cleanup through removing -> inactive.
+    -- Keep the native extension reset, without passing unrelated active
+    -- moods to MoodHandler.remove_all_moods and indexing missing sources.
+    VersusModeState.clear_observer_moods(role, handler)
+    local extension = safe_extension(unit, "mood_system")
+    if extension then
+        extension:remove_all_moods()
+    end
+end
+
 function VersusModeState.clear_observer_moods(role, handler)
     local mood_handler = handler and handler._mood_handler
     local camera_manager = Managers.state and Managers.state.camera
@@ -7644,10 +7659,12 @@ function VersusModeState.isolate_observer_camera(role, handler, reason)
         end
     end
 
-    -- Force the native tree root even when CameraHandler's cached follow unit
-    -- is unchanged. Safe-room teleports can move that unit into a newly loaded
-    -- sublevel without causing CameraHandler's normal switched-target refresh.
-    pcall(handler._update_follow, handler, true)
+    -- Rebind on real changes, including a teleport with the same anchor unit.
+    -- Ordinary frames still update follow, but must not force a root reset
+    -- twice per camera tick (pre-update and post-update).
+    local refresh_root = old_follow ~= follow_unit or anchor_changed or transition_detected
+        or not role.camera_isolation_logged
+    pcall(handler._update_follow, handler, refresh_root)
 
     if anchor_changed or transition_detected then
         local chunk_lod = Managers.state and Managers.state.chunk_lod
@@ -22366,6 +22383,19 @@ function VersusModeState.install_client_view_hooks()
         end
 
         return func(self, ...)
+    end)
+
+    -- CameraHandler.update also calls remove_all_moods when its ordinary
+    -- follow path is unavailable. The shell may still report active moods
+    -- (e.g. Psyker warped), but our isolated handler never started their audio.
+    -- Use its own tracked statuses for cleanup, not the shell's active list.
+    mod:hook(VersusModeState.camera_handler, "remove_all_moods", function(func, self, unit, ...)
+        local role = VersusModeState.camera_handler_role(self)
+        if role and not role.camera_restoring and not VersusModeState.cinematic_camera_active() then
+            VersusModeState.remove_isolated_observer_moods(role, self, unit)
+            return
+        end
+        return func(self, unit, ...)
     end)
 
     mod:hook(VersusModeState.camera_handler, "_update_player_mood", function(func, self, ...)

@@ -76,4 +76,14 @@ HudElementVersusTeam.update = function(self, dt, t, ui_renderer, render_settings
     end
 end
 
+-- Pools retain their peak size after a busy fight. Skip hidden widgets before
+-- UIWidget.draw, not only inside each pass's visibility function.
+HudElementVersusTeam._draw_widgets = function(self, dt, t, input_service, ui_renderer, render_settings)
+    for i = 1, #self._widgets do
+        local widget = self._widgets[i]
+        if widget.content.visible then
+            UIWidget.draw(widget, ui_renderer)
+        end
+    end
+end
 return HudElementVersusTeam
