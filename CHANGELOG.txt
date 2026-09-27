@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.24 - Host Trapper/Sniper shot cooldown (2026-09-27)
+----------------------------------------------------
+
+- Add a shared host slider from 3 to 30 seconds, default 3 seconds.
+- Apply it to controlled Snipers and Trappers, including Sniper Netter.
+- Recalculate active cooldowns from the last shot and refresh client status.
+- Preserve server authority; client preferences cannot change shot timing.
+
 3.0.23 - Expanded Heretic roster (2026-09-27)
 -------------------------------------------
 

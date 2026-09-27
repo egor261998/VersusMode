@@ -343,6 +343,24 @@ assert(builds<=100 and builds>=80,'cache must bound 600 frame reads to at most 1
 mod._team_hud_host_cache=nil;local previous=builds;VersusModeState.cached_team_hud_snapshot();assert(builds==previous+1)
 print('600 HUD reads, '..builds..' snapshot builds (including invalidation)')
 `);
+run('Host specialist cooldown defaults, bounds and live retiming',`
+local VersusModeState={};local value
+local function setting(id)assert(id=='specialist_shot_cooldown');return value end
+${fn('VersusModeState.specialist_shot_cooldown')}
+${fn('VersusModeState.refresh_specialist_shot_cooldown')}
+assert(VersusModeState.specialist_shot_cooldown()==3)
+value=0/0;assert(VersusModeState.specialist_shot_cooldown()==3)
+value=-2;assert(VersusModeState.specialist_shot_cooldown()==3)
+value=100;assert(VersusModeState.specialist_shot_cooldown()==30)
+value=8;local host={sniper_last_shot_t=10,sniper_fire_cooldown_until=13}
+local remote={netter_last_shot_t=20,netter_fire_cooldown_until=23,controller_peer_id='client'}
+VersusModeState.refresh_specialist_shot_cooldown(host);VersusModeState.refresh_specialist_shot_cooldown(remote)
+assert(host.sniper_fire_cooldown_until==18 and remote.netter_fire_cooldown_until==28 and remote.next_status_sync_at==0)
+value=3;VersusModeState.refresh_specialist_shot_cooldown(remote);assert(remote.netter_fire_cooldown_until==23)
+local client={remote_client=true,netter_last_shot_t=20,netter_fire_cooldown_until=28}
+VersusModeState.refresh_specialist_shot_cooldown(client);assert(client.netter_fire_cooldown_until==28)
+local idle={};VersusModeState.refresh_specialist_shot_cooldown(idle);assert(idle.sniper_fire_cooldown_until==nil)
+`);
 run('Night vision integration fades after camera return',`
 local mod={_night_vision={}};local Managers={ui={has_active_view=function()return false end}}
 local function get_mod()return mod end

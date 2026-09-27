@@ -95,6 +95,21 @@ return {
                 },
             },
             {
+                setting_id = "specialist_cooldown_group",
+                type = "group",
+                sub_widgets = {
+                    {
+                        setting_id = "specialist_shot_cooldown",
+                        type = "numeric",
+                        default_value = 3,
+                        range = { 3, 30 },
+                        decimals_number = 0,
+                        step_size_value = 1,
+                        tooltip = "specialist_shot_cooldown_tooltip",
+                    },
+                },
+            },
+            {
                 setting_id = "health_rules_group",
                 type = "group",
                 sub_widgets = {

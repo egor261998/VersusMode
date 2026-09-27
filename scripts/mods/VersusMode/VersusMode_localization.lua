@@ -1,4 +1,7 @@
 return {
+    specialist_cooldown_group = { en = "Shot cooldowns — Host", ru = "КД выстрелов — хост" },
+    specialist_shot_cooldown = { en = "Trapper / Sniper shot cooldown — Host (seconds)", ru = "КД выстрела трапера и снайпера — хост (секунды)" },
+    specialist_shot_cooldown_tooltip = { en = "Host only: 3–30 seconds between shots for controlled Trappers and Snipers, including Sniper Netter. Applies immediately to all Heretic players and recalculates cooldown from the last shot. Client settings are ignored.", ru = "Только хост: 3–30 секунд между выстрелами трапера и снайпера под управлением игроков, включая снайперского трапера. Сразу применяется ко всем еретикам; текущий КД пересчитывается от последнего выстрела. Настройка клиента не влияет на сервер." },
     hud_attack_mauler_strike = { en = "Axe strike", ru = "Удар топором" },
     hud_attack_mauler_cleave = { en = "Sweeping axe strike", ru = "Размашистый удар топором" },
     hound_lock_arc = { en = "Lock pounce charge", ru = "Зафиксировать дальность прыжка" },

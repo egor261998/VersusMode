@@ -440,7 +440,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.23"
+mod.version = "3.0.24"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -580,7 +580,6 @@ local MANUAL_AIM_BREEDS = {
 local SNIPER_AIM_DISTANCE = 150
 local SNIPER_CAMERA_FORWARD_OFFSET = 0.18
 local SNIPER_CAMERA_UP_OFFSET = 0.04
-local SNIPER_FIRE_COOLDOWN = 2
 local UI_INPUT_RELEASE_GRACE = 0.2
 local GRENADE_PREVIEW_STEP = 0.06
 local GRENADE_PREVIEW_MAX_TIME = 12
@@ -1825,6 +1824,22 @@ local function setting(id)
     end
 
     return value
+end
+
+function VersusModeState.specialist_shot_cooldown()
+    local value = setting("specialist_shot_cooldown")
+    if type(value) ~= "number" or value ~= value then return 3 end
+    return math.max(3, math.min(30, value))
+end
+
+function VersusModeState.refresh_specialist_shot_cooldown(state)
+    if not state or state.remote_client then return end
+    local duration = VersusModeState.specialist_shot_cooldown()
+    for _, prefix in ipairs({ "sniper", "netter" }) do
+        local shot_t = state[prefix .. "_last_shot_t"]
+        if shot_t then state[prefix .. "_fire_cooldown_until"] = shot_t + duration end
+    end
+    state.next_status_sync_at = 0
 end
 
 function VersusModeState.echo_attack_log_localized(key, ...)
@@ -20961,9 +20976,9 @@ function VersusModeState.update_authoritative_remote_control(state)
         local t = gameplay_time()
 
         if state.breed.name == SNIPER_BREED_NAME and state.sniper_shot_fired and t >= (state.sniper_shot_stop_t or 0) then
-            state.sniper_fire_cooldown_until = state.sniper_fire_cooldown_until or (t + SNIPER_FIRE_COOLDOWN)
+            state.sniper_fire_cooldown_until = state.sniper_fire_cooldown_until or (t + VersusModeState.specialist_shot_cooldown())
             pause_brain(state)
-            set_status(state, "Longlas recharging", SNIPER_FIRE_COOLDOWN)
+            set_status(state, "Longlas recharging", VersusModeState.specialist_shot_cooldown())
         else
             local target = state.attack_target
             local targetless = state.requested_attack and state.requested_attack.targetless
@@ -21442,9 +21457,9 @@ mod.update = function(dt)
         end
 
         if state.breed.name == SNIPER_BREED_NAME and state.sniper_shot_fired and t >= (state.sniper_shot_stop_t or 0) then
-            state.sniper_fire_cooldown_until = state.sniper_fire_cooldown_until or (t + SNIPER_FIRE_COOLDOWN)
+            state.sniper_fire_cooldown_until = state.sniper_fire_cooldown_until or (t + VersusModeState.specialist_shot_cooldown())
             pause_brain(state)
-            set_status(state, "Longlas recharging", SNIPER_FIRE_COOLDOWN)
+            set_status(state, "Longlas recharging", VersusModeState.specialist_shot_cooldown())
         else
             local target = state.attack_target
             local targetless = state.requested_attack and state.requested_attack.targetless
@@ -24495,7 +24510,8 @@ mod:hook(BtShootNetAction, "_start_shooting", function(func, self, unit, scratch
         action_data.max_net_distance = state.requested_attack.manual_range_max or 28
     end
     local result = func(self, unit, scratchpad, action_data)
-    state.netter_fire_cooldown_until = gameplay_time() + 2
+    state.netter_last_shot_t = gameplay_time()
+    state.netter_fire_cooldown_until = state.netter_last_shot_t + VersusModeState.specialist_shot_cooldown()
     return result
 end)
 
@@ -24752,7 +24768,8 @@ mod:hook(MinionAttack, "shoot", function(func, unit, scratchpad, action_data)
 
         state.sniper_shot_fired = true
         state.sniper_shot_stop_t = t + 0.1
-        state.sniper_fire_cooldown_until = t + SNIPER_FIRE_COOLDOWN
+        state.sniper_last_shot_t = t
+        state.sniper_fire_cooldown_until = t + VersusModeState.specialist_shot_cooldown()
         state.attack_phase = "FIRED"
     end
 
@@ -25680,6 +25697,12 @@ end
 
 mod.on_setting_changed = function(setting_id)
     local state = mod._control
+    if setting_id == "specialist_shot_cooldown" and is_server() then
+        VersusModeState.refresh_specialist_shot_cooldown(state)
+        for _, remote_state in pairs(mod._remote_controls or {}) do
+            VersusModeState.refresh_specialist_shot_cooldown(remote_state)
+        end
+    end
 
     if mod._keybind_holds and string.find(setting_id, "keybind", 1, true) then
         -- Bind and activation changes are made in menus. Clear every timer so
