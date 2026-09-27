@@ -30,7 +30,7 @@ end
 assert(n==32)
 for breed in pairs(portraits.profiles)do
  local p=assert(imported[breed],breed);local area=0
- assert(type(p.packed)=='string' and #p.packed%7==0 and #p.packed/7<=2048)
+ assert(type(p.packed)=='string' and #p.packed%7==0 and #p.packed/7<=p.width*p.height and p.width==96)
  for i=1,#p.packed,7 do
   local x,y,w,h=string.byte(p.packed,i,i+3)
   assert(x+w<=p.width and y+h<=p.height and w>0 and h>0)
