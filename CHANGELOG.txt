@@ -1,3 +1,9 @@
+3.1.2
+- Fix isolated Heretic camera mood cleanup accessing absent Psyker sound sources.
+- Skip hidden pooled health, damage and team widgets before rendering.
+- Avoid redundant camera-root rebinding and detached-player aim-interpolator resets; preserve target switches and teleport refreshes.
+- Validate repeated updates and camera transitions; in-game long-session performance still requires verification.
+
 3.1.1
 - Reduce temporary allocations in protected extension queries and redundant night-vision light updates.
 - Move the Heretic team HUD upward to clear the weapon interface.

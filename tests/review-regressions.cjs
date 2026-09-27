@@ -173,6 +173,80 @@ state.remote_client=true;VersusModeState.finish_controlled_captain_kneel(1,board
 state=nil;VersusModeState.finish_controlled_captain_kneel(1,board,{},data,false)
 assert(#sent==1)
 `);
+run('Isolated observer clears owned moods without dereferencing absent Psyker sound sources', `
+local cleared,reset=0,0
+local role={};local handler={_mood_handler={_sfx_source_ids={}}}
+local extension={remove_all_moods=function()reset=reset+1 end}
+local function safe_extension(unit,system)assert(system=='mood_system');return unit==1 and extension end
+local VersusModeState={clear_observer_moods=function(r,h)assert(r==role and h==handler);cleared=cleared+1 end}
+${fn('VersusModeState.remove_isolated_observer_moods')}
+VersusModeState.remove_isolated_observer_moods(role,handler,1)
+VersusModeState.remove_isolated_observer_moods(role,handler,nil)
+assert(cleared==2 and reset==1)
+-- Exercise the real hook, including normal/restoring/cinematic fallthrough.
+local hook
+local mod={hook=function(_,_,name,f)assert(name=='remove_all_moods');hook=f end}
+VersusModeState.camera_handler={}
+local isolated=true;local cinematic=false
+VersusModeState.camera_handler_role=function()return isolated and role end
+VersusModeState.cinematic_camera_active=function()return cinematic end
+${source.slice(source.indexOf('    mod:hook(VersusModeState.camera_handler, "remove_all_moods"'),source.indexOf('    mod:hook(VersusModeState.camera_handler, "_update_player_mood"'))}
+local native=0
+local function original(h,u,arg)native=native+1;assert(arg=='arg');return 'native' end
+hook(original,handler,1,'arg');assert(native==0 and reset==2)
+role.camera_restoring=true;assert(hook(original,handler,1,'arg')=='native')
+role.camera_restoring=nil;cinematic=true;assert(hook(original,handler,1,'arg')=='native')
+cinematic=false;isolated=false;assert(hook(original,handler,1,'arg')=='native')
+assert(native==3)
+`);
+run('Long observer session avoids repeated root/interpolator resets but preserves transitions', `
+local role={infected_unit=1};local anchor=2;local changed,transition=false,false
+local resets,followed_updates=0,0
+local extension={_is_camera_follow_target=true,set_camera_follow_target=function(self)
+ resets=resets+1;self._is_camera_follow_target=false;self._is_first_person_spectated=false end}
+local ALIVE={[1]=true,[2]=true,[3]=true}
+local ScriptUnit={has_extension=function()return extension end}
+local Managers={state={},player={players=function()return {{player_unit=1},{player_unit=2}}end}}
+local mod={info=function()end}
+local VersusModeState={camera_modes={observer='observer'},
+ camera_handler_role=function()return role end,cinematic_camera_active=function()return false end,
+ streaming_focus=function()end,refresh_streaming_anchor=function()return anchor,changed,transition end,
+ clear_observer_moods=function()end,log_camera_diagnostic=function()end}
+local forced=0
+local handler={_camera_follow_unit=2,_update_follow=function(_,force)followed_updates=followed_updates+1;if force then forced=forced+1 end end,
+ _switch_follow_target=function(self,unit)self._camera_follow_unit=unit end}
+local function valid_player_target(u)return ALIVE[u]end
+${fn('VersusModeState.detach_observer_player_units')}
+${fn('VersusModeState.isolate_observer_camera')}
+for i=1,20000 do assert(VersusModeState.isolate_observer_camera(role,handler))end
+assert(followed_updates==20000 and forced==1 and resets==1)
+transition=true;VersusModeState.isolate_observer_camera(role,handler);transition=false
+assert(forced==2)
+anchor=3;changed=true;VersusModeState.isolate_observer_camera(role,handler);changed=false
+assert(forced==3 and handler._camera_follow_unit==3)
+handler._camera_follow_unit=nil;VersusModeState.isolate_observer_camera(role,handler);assert(forced==4)
+extension._is_first_person_spectated=true;VersusModeState.isolate_observer_camera(role,handler);assert(resets==2)
+role.camera_restoring=true;extension._is_camera_follow_target=true
+VersusModeState.detach_observer_player_units(role);assert(resets==2)
+print('20000 camera updates: forced root resets 20000 -> 1; repeated detached-player resets eliminated')
+`);
+for(const [file,cls] of [['VersusMode_operative_health_hud.lua','HudElementVersusOperativeHealth'],['VersusMode_team_hud.lua','HudElementVersusTeam']]){
+ const text=fs.readFileSync(path.join(base,file),'utf8'),tree=parse(text,{luaVersion:'5.1',ranges:true});
+ const draw=tree.body.find(n=>n.type==='AssignmentStatement'&&n.variables[0]?.identifier?.name==='_draw_widgets');
+ run(cls+' skips pooled invisible widgets after long combat',`
+ local ${cls}={};local draws=0
+ local UIWidget={draw=function(w)assert(w.content.visible);draws=draws+1 end}
+ ${text.slice(...draw.range)}
+ local self={_widgets={}}
+ for i=1,48 do self._widgets[i]={content={visible=false}}end
+ for i=1,10000 do ${cls}._draw_widgets(self)end
+ assert(draws==0)
+ self._widgets[48].content.visible=true
+ ${cls}._draw_widgets(self);assert(draws==1)
+ self._widgets[48].content.visible=false;${cls}._draw_widgets(self);assert(draws==1)
+ print('48 hidden widgets over 10000 frames: UIWidget.draw calls 480000 -> 0')
+ `);
+}
 const startAttack=fn('start_attack_burst');
 run('Manual release opens the death picker on host and client without death cooldown',`
 local now=20;local role;local choices={}
