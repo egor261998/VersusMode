@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.28 - Reload without movement lock (2026-09-27)
+------------------------------------------------
+
+- R interrupts gunner fire and blocks only primary shooting for two seconds.
+- Keep local/remote movement and normal locomotion animations enabled.
+- Remove forced reload/recovery animation; retain melee during the firing lock.
+
 3.0.27 - Fix melee circle projection (2026-09-27)
 -----------------------------------------------
 

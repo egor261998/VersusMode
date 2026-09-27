@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.27"
+mod.version = "3.0.28"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12430,7 +12430,6 @@ function VersusModeState.attack_command_should_stop(state, t, attacking)
 end
 
 function VersusModeState.refresh_control_animation(state)
-    if VersusModeState.gunner_reloading(state) then return false end
     if not state
         or not state.possessed
         or not ALIVE[state.unit]
@@ -14493,11 +14492,6 @@ function VersusModeState.update_gunner_shoot_movement(state, forward_amount, rig
 end
 
 local function update_manual_movement(state, gunner_shooting)
-    if VersusModeState.gunner_reloading(state) then
-        update_manual_look(state)
-        stop_manual_motion(state, true)
-        return
-    end
     if not update_manual_look(state) then
         if gunner_shooting then
             VersusModeState.update_gunner_shoot_movement(state, 0, 0)
@@ -16547,10 +16541,6 @@ function VersusModeState.update_remote_camera_pose(state)
 end
 
 function VersusModeState.update_remote_authoritative_movement(state, gunner_shooting)
-    if VersusModeState.gunner_reloading(state) then
-        stop_manual_motion(state, true)
-        return
-    end
     local input = state.remote_input
     local t = gameplay_time()
     local forward_amount = input and t - (input.received_at or 0) <= 0.5 and input.forward or 0
@@ -17868,7 +17858,7 @@ mod.toggle_possession = function(is_pressed, force_action)
 end
 
 local function request_attack_for_state(state, slot, preferred_target, hound_aim_yaw, hound_aim_pitch, hound_charge_fraction)
-    if VersusModeState.gunner_reloading(state) then return end
+    if slot == "primary" and VersusModeState.gunner_reloading(state) then return end
     if not state or not state.possessed then
         return
     end
@@ -18409,18 +18399,10 @@ function VersusModeState.restart_gunner_burst(state)
         pause_brain(state)
     end
     -- Native gunners count bursts, not magazines. Do not start shooting on R.
-    stop_manual_motion(state, true)
     state.burst_total, state.burst_remaining = nil, nil
     state.gunner_reload_until = gameplay_time() + 2
     state.animation_heartbeat_last_event = nil
-    -- Not every gunner skeleton has a reload animation. Only send supported
-    -- events; out_of_aim is the native Scab/Dreg recovery fallback.
-    for _, event in ipairs({ "reload", "gun_jam_start", "out_of_aim" }) do
-        if Unit.has_animation_event(state.unit, event) then
-            safe_anim_event(state.animation, event)
-            break
-        end
-    end
+    -- Reload is a firing lock only. Normal locomotion owns the animation.
 end
 
 function Specialist.toggle_target_lock(state)

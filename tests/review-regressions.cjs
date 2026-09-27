@@ -213,7 +213,7 @@ ${fn('VersusModeState.restart_gunner_burst')}
 for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
  s={possessed=true,breed={name=breed},attack_deadline=10,requested_attack={gunner_combat_range='far'}}
  local before=requested;VersusModeState.restart_gunner_burst(s);assert(requested==before)
- assert(not s.attack_deadline and s.gunner_reload_until==12 and event=='gun_jam_start')
+ assert(not s.attack_deadline and s.gunner_reload_until==12 and event==nil)
  assert(VersusModeState.gunner_reloading(s));now=11
  VersusModeState.restart_gunner_burst(s);assert(s.gunner_reload_until==12,'repeat R must not extend recovery')
  now=12;assert(not VersusModeState.gunner_reloading(s));now=10;s.gunner_reload_until=nil
@@ -225,12 +225,13 @@ assert(paused==3)
 gated=true;sent=nil;VersusModeState.restart_gunner_burst(s);assert(sent==nil)
 gated=false;s={possessed=true,breed={name='renegade_gunner'}}
 Unit.has_animation_event=function(_,name)return name=='out_of_aim' end
-VersusModeState.restart_gunner_burst(s);assert(event=='out_of_aim','native recovery fallback')
+VersusModeState.restart_gunner_burst(s);assert(event==nil,'reload must not force an animation')
 ${fn('request_attack_for_state')}
 request_attack_for_state(s,'primary') -- must return before any attack setup
-${fn('VersusModeState.refresh_control_animation')}
-assert(not VersusModeState.refresh_control_animation(s),'idle must not replace reload')
 `);
+for(const name of ['update_manual_movement','VersusModeState.update_remote_authoritative_movement','VersusModeState.refresh_control_animation']){
+ if(fn(name).includes('gunner_reloading'))throw Error('Reload must not block locomotion: '+name);
+}
 run('Melee guide attack selection, geometry and individual settings',`
 local VersusModeState={}
 ${fn('VersusModeState.is_preview_melee')}
