@@ -5,6 +5,26 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+run('Shotgun commands preserve native weapon transitions',`
+local Specialist={}
+local function safe_extension_call(ext,method)return true,ext.slot end
+${fn('Specialist.prepare_shotgun_range')}
+local state={breed={name='renegade_shocktrooper'},visual_loadout={slot='slot_ranged_weapon'},
+ blackboard={behavior={combat_range='close'},weapon_switch={}}}
+assert(Specialist.prepare_shotgun_range(state,{shotgun_combat_range='melee'}))
+assert(state.blackboard.weapon_switch.is_switching_weapons)
+assert(state.blackboard.weapon_switch.wanted_weapon_slot=='slot_melee_weapon')
+assert(state.blackboard.behavior.combat_range=='close')
+state.visual_loadout.slot='slot_melee_weapon';state.blackboard.behavior.combat_range='melee'
+assert(Specialist.prepare_shotgun_range(state,{shotgun_combat_range='close'}))
+assert(state.blackboard.weapon_switch.wanted_weapon_slot=='slot_ranged_weapon')
+assert(state.blackboard.behavior.combat_range=='melee')
+state.breed.name='cultist_shocktrooper';state.blackboard.weapon_switch=nil
+assert(Specialist.prepare_shotgun_range(state,{shotgun_combat_range='close'}))
+assert(state.blackboard.behavior.combat_range=='close')
+assert(Specialist.prepare_shotgun_range(state,{shotgun_combat_range='melee'}))
+assert(state.blackboard.behavior.combat_range=='melee')
+`);
 run('View preflight rejects failed definitions and retries safely',`
 local result=false;local raises=false;local loads=0;local errors=0
 local mod={_view_definitions={},io_dofile=function()loads=loads+1;if raises then error('load error')end;return result end,

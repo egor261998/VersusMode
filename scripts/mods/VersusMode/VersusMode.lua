@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.30"
+mod.version = "3.0.31"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -773,7 +773,7 @@ local ATTACKS = {
     },
     cultist_shocktrooper = {
         primary = { label = "Shotgun Blast", action_name = "shoot", selector_name = "close_combat_utility", shotgun_combat_range = "close", force_utility = true, cancellable = true, camera_directed = true, stationary = true, single_shoot_cycle = true },
-        heavy = { label = "Gun Butt Strike", action_name = "melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+        heavy = { label = "Bayonet Stab", action_name = "bayonet_melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
     },
     renegade_sniper = {
         primary = { label = "Fire Longlas", action_name = "shoot", manual_aim = true },
@@ -11270,6 +11270,26 @@ function VersusModeState.try_assign_pending_boss()
     return false
 end
 
+function Specialist.prepare_shotgun_range(state, attack)
+    local range = attack.shotgun_combat_range or "close"
+    local behavior = state.blackboard.behavior
+    -- Scabs draw a separate melee weapon. Dregs keep their shotgun and bayonet.
+    if state.breed.name == "renegade_shocktrooper" then
+        local slot = range == "melee" and "slot_melee_weapon" or "slot_ranged_weapon"
+        local switch = state.blackboard.weapon_switch
+        local ok, wielded = safe_extension_call(state.visual_loadout, "wielded_slot_name")
+        if not switch or not ok then return false, "shotgun weapon state unavailable" end
+        switch.wanted_weapon_slot = slot
+        switch.wanted_combat_range = range
+        if wielded ~= slot then
+            switch.is_switching_weapons = true
+            return true
+        end
+    end
+    behavior.combat_range = range
+    return true
+end
+
 local function prepare_native_attack(state, attack)
     local behavior_component = state.blackboard and state.blackboard.behavior
 
@@ -11278,7 +11298,8 @@ local function prepare_native_attack(state, attack)
     end
 
     if VersusModeState.shotgun_breeds[state.breed.name] then
-        behavior_component.combat_range = attack.shotgun_combat_range or "close"
+        local ok, reason = Specialist.prepare_shotgun_range(state, attack)
+        if not ok then return false, reason end
     elseif VersusModeState.gunner_breeds[state.breed.name] then
         behavior_component.combat_range = attack.gunner_combat_range or "far"
     elseif VersusModeState.controlled_elite_breeds[state.breed.name] then
@@ -23059,9 +23080,9 @@ mod:hook(VersusModeState.switch_weapon_action, "enter", function(func, self, uni
         and state.unit == unit
         and state.attack_deadline
         and state.breed
-        and CAPTAIN_BREEDS[state.breed.name]
         and requested
-        and requested.captain_weapon_slot == wanted_slot
+        and (CAPTAIN_BREEDS[state.breed.name] and requested.captain_weapon_slot == wanted_slot
+            or state.breed.name == "renegade_shocktrooper" and requested.shotgun_combat_range)
     local result = func(self, unit, breed, blackboard, scratchpad, action_data, t)
 
     if controlled_switch then
@@ -23075,7 +23096,7 @@ mod:hook(VersusModeState.switch_weapon_action, "enter", function(func, self, uni
         )
 
         mod:info(
-            "Versus Mode: Captain switching %s -> %s with %.2f s native draw; queued attack protected until %.2f.",
+            "Versus Mode: switching %s -> %s with %.2f s native draw; queued attack protected until %.2f.",
             tostring(scratchpad.slot_that_got_unwielded or "unarmed"),
             tostring(wanted_slot),
             native_duration,
@@ -23090,6 +23111,14 @@ end)
 -- a possessed ordinary Captain so it cannot combine a retained melee phase
 -- with a commanded far range between two shotgun/plasma attacks. Release
 -- restores one coherent phase/range pair before this updater is allowed again.
+mod:hook(VersusModeState.combat_range_user_behavior, "update_combat_range", function(func, self, unit, blackboard, dt, t)
+    local state = VersusModeState.control_for_unit(unit)
+    if state and state.attack_deadline and VersusModeState.shotgun_breeds[state.breed.name] then
+        return
+    end
+    return func(self, unit, blackboard, dt, t)
+end)
+
 mod:hook(VersusModeState.combat_range_user_behavior, "update_minion_phase", function(func, self, unit, blackboard, dt, t)
     local state = VersusModeState.control_for_unit(unit)
 

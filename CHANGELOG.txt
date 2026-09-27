@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.31 - Shotgunner melee/ranged transitions (2026-09-27)
+--------------------------------------------------------
+
+- Queue native Scab weapon draws before melee and ranged attacks, preserving their acquisition window.
+- Use the Dreg's native bayonet attack and keep commanded combat range during attacks.
+
 3.0.30 - Safe custom view initialization (2026-09-27)
 ---------------------------------------------------
 
