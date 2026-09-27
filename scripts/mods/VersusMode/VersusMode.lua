@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.1.0"
+mod.version = "3.1.1"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -2382,39 +2382,41 @@ local function is_server()
     return game_session and game_session:is_server()
 end
 
+-- Reuse protected call targets instead of allocating closures and argument
+-- tables for every HUD/control query. Lookup stays inside pcall: extensions
+-- and unit handles can become invalid during the same frame.
+function VersusModeState.protected_unit_alive(unit)
+    return ALIVE[unit]
+end
+
+function VersusModeState.protected_unit_extension(unit, system_name)
+    return ScriptUnit.has_extension(unit, system_name)
+end
+
+function VersusModeState.protected_extension_method(extension, method_name, ...)
+    return extension[method_name](extension, ...)
+end
+
 local function safe_extension(unit, system_name)
     if not unit then
         return nil
     end
 
-    local alive_ok, alive = pcall(function()
-        return ALIVE[unit]
-    end)
-
+    local alive_ok, alive = pcall(VersusModeState.protected_unit_alive, unit)
     if not alive_ok or not alive then
         return nil
     end
 
-    local extension_ok, extension = pcall(function()
-        return ScriptUnit.has_extension(unit, system_name)
-    end)
-
+    local extension_ok, extension = pcall(VersusModeState.protected_unit_extension, unit, system_name)
     return extension_ok and extension or nil
 end
 
--- Accessing a method on an extension that was destroyed earlier in the same
--- frame raises before a normal pcall(extension.method, ...) can begin. Keep
--- both the property lookup and invocation inside the protected closure.
 local function safe_extension_call(extension, method_name, ...)
     if not extension then
         return false, nil
     end
 
-    local args = { ... }
-
-    return pcall(function()
-        return extension[method_name](extension, table_unpack(args))
-    end)
+    return pcall(VersusModeState.protected_extension_method, extension, method_name, ...)
 end
 
 -- Darktide normally renders the local player's world body only while its
@@ -25059,6 +25061,36 @@ for i = 1, #VersusModeState.captain_root_selectors do
         return result
     end)
 end
+
+-- Shield recharge enters a looping kneel animation. Its native leave cleans
+-- shield state but assumes either run sent the stand-up event or shield break
+-- will stagger the unit. Controlled captains suppress that stagger, and a
+-- command timeout can leave before run reaches stand-up.
+function VersusModeState.finish_controlled_captain_kneel(unit, blackboard, scratchpad, action_data, destroy)
+    local state = VersusModeState.control_for_unit(unit)
+    if destroy or not state or not state.possessed or state.remote_client
+        or not state.breed or not CAPTAIN_BREEDS[state.breed.name]
+        or not ALIVE[unit] or not HEALTH_ALIVE[unit]
+        or blackboard and blackboard.death and blackboard.death.is_dead
+        or scratchpad.stand_up_anim_duration then
+        return
+    end
+
+    local events = action_data and action_data.stand_up_anim_events
+    local event = type(events) == "table" and events[1] or type(events) == "string" and events
+    if event then
+        local animation = state.animation or safe_extension(unit, "animation_system")
+        safe_anim_event(animation, event)
+        state.animation_heartbeat_last_event = nil
+    end
+end
+
+mod:hook(require("scripts/extension_systems/behavior/nodes/actions/bt_renegade_twin_captain_shield_down_action"), "leave",
+    function(func, self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+        local result = func(self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+        VersusModeState.finish_controlled_captain_kneel(unit, blackboard, scratchpad, action_data, destroy)
+        return result
+    end)
 
 -- A controlled Scab or Dreg in cover still needs its combat selector for
 -- a deliberate gunfire or melee command. Restore cover after evaluation.
