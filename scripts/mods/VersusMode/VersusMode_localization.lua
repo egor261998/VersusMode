@@ -1,4 +1,6 @@
 return {
+    death_picker_hint = { en = "Choose your next Heretic. Respawn waits for your choice; enemies on cooldown unlock when their timer expires.", ru = "Выбери следующего еретика. Возрождение ждёт выбора; враги на КД станут доступны по окончании таймера." },
+    hud_boss_takeover_only = { en = "Bosses can only be taken over after they appear in the mission", ru = "Боссом можно управлять только через перехват после его появления в миссии" },
     spawn_group_bosses = { en = "Bosses", ru = "Боссы" },
     spawn_group_ranged = { en = "Ranged", ru = "Стрелки" },
     spawn_group_melee = { en = "Melee", ru = "Ближники" },

@@ -30,6 +30,9 @@ VersusModeSpawnView.on_enter = function(self)
     end
     widgets.title.content.text = mod:localize("spawn_picker_title")
     widgets.hint.content.text = mod:localize("spawn_picker_hint")
+    if not self._grouped and not mod.training_available() then
+        widgets.hint.content.text = mod:localize("death_picker_hint")
+    end
     widgets.cancel.content.text = mod:localize("spawn_picker_cancel")
     widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_close")
     if mod.training_available() then
