@@ -134,8 +134,8 @@ local VersusModeState = {
         { name = "renegade_twin_captain", label = "Scab Lieutenant (plasma)", label_key = "spawn_havoc_lieutenant_ranged" },
         { name = "renegade_twin_captain_two", label = "Scab Lieutenant (sword)", label_key = "spawn_havoc_lieutenant_melee" },
     },
-    -- Manual boss selection does not enable automatic takeover of map bosses.
-    allow_boss_reinforcements = false,
+    -- Map bosses are offered to Heretics; possession requires an explicit Yes.
+    allow_boss_reinforcements = true,
     controlled_elite_breeds = {
         renegade_gunner = true,
         cultist_gunner = true,
@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.55"
+mod.version = "3.0.56"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -11024,6 +11024,7 @@ function VersusModeState.queue_normal_boss(unit, boss_extension)
         or not setting("enable_versus_mode")
         or not setting("auto_takeover_normal_bosses")
         or not is_server()
+        or mod._exact_spawn_context ~= nil
         or not unit
         or not ALIVE[unit] then
         return
@@ -11095,187 +11096,73 @@ function VersusModeState.auto_boss_release_blocked(state)
     return true
 end
 
-function VersusModeState.try_assign_pending_boss()
-    if not VersusModeState.allow_boss_reinforcements
-        or not setting("enable_versus_mode")
-        or not setting("auto_takeover_normal_bosses")
-        or not is_server()
-        or VersusModeState.count() == 0 then
-        return false
-    end
-
-    local maximum = math_max(1, math.floor(setting("max_infected_controlled_bosses") or 1))
-
-    if VersusModeState.controlled_boss_count() >= maximum then
-        return false
-    end
-
-    local pending = mod._pending_normal_bosses
-
-    if not pending then
-        return false
-    end
-
-    local t = gameplay_time()
-    local selected
-
-    for unit, entry in pairs(pending) do
-        if not unit or not ALIVE[unit] or not HEALTH_ALIVE[unit] then
-            pending[unit] = nil
+local create_boss_offers = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_boss_offers")
+mod._boss_offers = create_boss_offers({
+    now = gameplay_time,
+    host = is_server,
+    enabled = function() return setting("enable_versus_mode") and setting("auto_takeover_normal_bosses") end,
+    alive = function(unit) return ALIVE[unit] and HEALTH_ALIVE[unit] end,
+    roles = VersusModeState.roles,
+    text = function(key, ...) return mod:localize(key, ...) end,
+    label = function(breed) return VersusModeState.respawn_label(breed) end,
+    local_eligible = function() return VersusModeState.local_active() and Managers.event ~= nil end,
+    role_eligible = function(role)
+        if not role or not role.infected_human then return false end
+        local present = false
+        for _, current in pairs(VersusModeState.roles()) do if current == role then present = true end end
+        if not present or not role.infected_player then return false end
+        local local_role = role == VersusModeState.local_role()
+        local state = VersusModeState.control_for_role(role)
+        if role.assigned_boss_unit and not state then return false end
+        if state and (state.controlled_normal_boss or state.attack_deadline or state.controlled_traversal) then return false end
+        return local_role or mod._realms_compat and mod._realms_compat.peer_compatible(role.infected_peer_id)
+    end,
+    capacity = function()
+        return VersusModeState.controlled_boss_count() < math_max(1, math.floor(setting("max_infected_controlled_bosses") or 1))
+    end,
+    boss_eligible = function(entry)
+        return ALIVE[entry.unit] and HEALTH_ALIVE[entry.unit]
+            and not VersusModeState.control_for_unit(entry.unit)
+            and VersusModeState.normal_boss_status(entry.unit, entry.breed, entry.boss_extension)
+            and VersusModeState.daemonhost_control_status(entry.unit, entry.breed) == "ready"
+    end,
+    send = function(role, payload)
+        if role == VersusModeState.local_role() then
+            mod._boss_offers:receive(payload)
+        elseif mod._realms_compat then
+            mod._realms_compat.send_status(role.infected_peer_id, payload)
+        end
+    end,
+    reply = function(id, accepted)
+        if is_server() then
+            mod._boss_offers:answer(VersusModeState.local_role(), id, accepted)
         else
-            local eligible, _, _, weakened = VersusModeState.normal_boss_status(unit, entry.breed, entry.boss_extension)
-
-            if not eligible then
-                pending[unit] = nil
-            else
-                entry.weakened = weakened == true
-                local control_status = VersusModeState.daemonhost_control_status(unit, entry.breed)
-
-                if control_status == "ended" then
-                    pending[unit] = nil
-                elseif control_status ~= "ready" then
-                    entry.retry_at = t + 0.25
-
-                    if not entry.awaiting_wake_logged then
-                        entry.awaiting_wake_logged = true
-                        mod:info(
-                            "Versus Mode: holding %s allocation until its native wake-up completes.",
-                            tostring(entry.breed.name)
-                        )
-                    end
-                elseif t >= (entry.retry_at or 0) and (not selected or entry.queued_at < selected.queued_at) then
-                    if entry.awaiting_wake_logged and not entry.wake_ready_logged then
-                        entry.wake_ready_logged = true
-                        mod:info("Versus Mode: %s is fully awake and ready for allocation.", tostring(entry.breed.name))
-                    end
-
-                    selected = entry
-                end
-            end
+            VersusModeState.send_client_action("boss_offer_answer", { offer_id = id, accepted = accepted })
         end
-    end
-
-    if not selected then
-        return false
-    end
-
-    local selected_role
-    local current_state
-
-    -- Give an unoccupied infected player the boss before replacing another
-    -- player's live specialist. This matters once several Realm clients can
-    -- own independent control states.
-    for _, role in pairs(VersusModeState.roles()) do
-        local local_role = VersusModeState.local_role() == role
-        local compatible_remote = role.infected_peer_id
-            and mod._realms_compat
-            and mod._realms_compat.peer_compatible(role.infected_peer_id)
-
-        if role.infected_human and not role.assigned_boss_unit and (local_role or compatible_remote) then
-            selected_role = role
-
-            break
-        end
-    end
-
-    if not selected_role and mod._control and mod._control.infected_spawn and not mod._control.controlled_normal_boss then
-        current_state = mod._control
-        selected_role = mod._control.versus_role or mod._versus_role_test
-    end
-
-    if not selected_role then
-        for _, remote_state in pairs(mod._remote_controls or {}) do
-            if remote_state.infected_spawn and not remote_state.controlled_normal_boss then
-                current_state = remote_state
-                selected_role = remote_state.versus_role
-
-                break
-            end
-        end
-    end
-
-    if not selected_role then
-        return false
-    end
-
-    if current_state then
-        VersusModeState.release_control(
-            current_state,
-            selected.weakened
-                and "a weakened boss spawned; previous enemy returned to AI."
-                or "a full-strength boss spawned; previous enemy returned to AI.",
-            true
-        )
-    end
-
-    local player = selected_role.infected_player
-    local local_role = VersusModeState.local_role() == selected_role
-    local controller_peer_id
-
-    -- Lua's common `condition and value or fallback` idiom cannot represent a
-    -- deliberately nil value: `local_role and nil or peer_id` always chooses
-    -- peer_id. That made a host-local allocation create a remote control state
-    -- and left the host in free camera. Keep the two authority routes explicit.
-    if not local_role then
-        controller_peer_id = VersusModeState.normalize_peer_id(selected_role.infected_peer_id)
-    end
-
-    if not local_role and not controller_peer_id then
-        selected.retry_at = t + 1
-        mod:warning(
-            "Versus Mode: deferred boss allocation for %s because the remote controller has no peer ID.",
-            tostring(selected_role.infected_name or "player")
-        )
-
-        return false
-    end
-
-    mod:info(
-        "Versus Mode: boss allocation route for %s is %s (selected peer: %s).",
-        tostring(selected_role.infected_name or VersusModeState.player_name(player)),
-        local_role and "local host control" or "remote client control",
-        tostring(controller_peer_id or "none")
-    )
-
-    local possessed = player and begin_possession(
-        selected.unit,
-        player,
-        player.player_unit,
-        controller_peer_id,
-        selected_role
-    )
-    local control_state = controller_peer_id and VersusModeState.control_for_peer(controller_peer_id) or mod._control
-
-    if possessed and control_state then
-        control_state.infected_spawn = true
-        control_state.auto_boss_takeover = true
-        -- The same update can finish a held Possess key after replacing the
-        -- previous Specialist. Without a short guard, that release edge is
-        -- applied to the brand-new boss and immediately relinquishes it.
-        control_state.auto_boss_release_block_until = gameplay_time()
-            + VersusModeState.auto_boss_release_guard_duration
-        selected_role.assigned_boss_unit = selected.unit
-        pending[selected.unit] = nil
+    end,
+    possess = function(entry, role)
+        local local_role = role == VersusModeState.local_role()
+        local peer
+        if not local_role then peer = VersusModeState.normalize_peer_id(role.infected_peer_id) end
+        if not local_role and not peer then return false end
+        local state = local_role and mod._control or VersusModeState.control_for_peer(peer)
+        if state then VersusModeState.release_control(state, nil, true) end
+        local player = role.infected_player
+        if not begin_possession(entry.unit, player, player.player_unit, peer, role) then return false end
+        local control = peer and VersusModeState.control_for_peer(peer) or mod._control
+        if not control then return false end
+        control.infected_spawn = true
+        control.auto_boss_takeover = true
+        control.auto_boss_release_block_until = gameplay_time() + VersusModeState.auto_boss_release_guard_duration
+        role.assigned_boss_unit = entry.unit
+        if mod._pending_normal_bosses then mod._pending_normal_bosses[entry.unit] = nil end
         VersusModeState.publish_roster()
-
-        VersusModeState.echo_localized(
-            selected.weakened and "notice_weakened_boss_allocated" or "notice_full_strength_boss_allocated",
-            pretty_name(selected.breed),
-            selected_role.infected_name or VersusModeState.player_name(player)
-        )
-
         return true
-    end
+    end,
+})
 
-    selected.attempts = (selected.attempts or 0) + 1
-    selected.retry_at = t + 1
-
-    if selected.attempts >= 3 then
-        pending[selected.unit] = nil
-        mod:warning("Versus Mode: abandoned automatic takeover of %s after three failed attempts.", selected.breed.name)
-    end
-
-    return false
+function VersusModeState.try_assign_pending_boss()
+    mod._boss_offers:update(mod._pending_normal_bosses)
 end
 
 function Specialist.prepare_shotgun_range(state, attack)
@@ -17704,6 +17591,11 @@ function VersusModeState.apply_remote_status(payload)
         return
     end
 
+    if payload.kind == "boss_offer" or payload.kind == "boss_offer_cancel" then
+        mod._boss_offers:receive(payload)
+        return
+    end
+
     local state = mod._control
     local semantic_message = VersusModeState.remote_respawn_notice_message(payload)
     local message = semantic_message or type(payload.message) == "string" and payload.message or nil
@@ -18673,6 +18565,14 @@ function VersusModeState.receive_remote_action(peer_id, payload)
         or payload.sequence < 0
         or payload.sequence > 2147483647 then
         return false
+    end
+
+    if payload.action == "boss_offer_answer" then
+        local role = VersusModeState.role_for_peer(peer_id)
+        if not role or not mod._realms_compat or not mod._realms_compat.peer_compatible(peer_id)
+            or payload.sequence <= (role.remote_spawn_action_sequence or 0) then return false end
+        role.remote_spawn_action_sequence = payload.sequence
+        return mod._boss_offers:answer(role, payload.offer_id, payload.accepted)
     end
 
     if payload.action == "cycle_spawn" or payload.action == "select_spawn" or payload.action == "spawn_picker" then
@@ -25780,6 +25680,7 @@ mod.on_game_state_changed = function(status, state_name)
         mod._versus_roles = nil
         mod._infected_selector_state = nil
         mod._pending_normal_bosses = nil
+        if mod._boss_offers then mod._boss_offers:reset() end
         mod._versus_mode_checked_bosses = nil
         mod._daemonhost_forced_leave = nil
         mod._pending_remote_control = nil
@@ -26024,6 +25925,7 @@ mod.on_setting_changed = function(setting_id)
         VersusModeState.clear("test disabled in Mod Options")
         VersusModeState.clear_replicated_host_state()
         mod._pending_normal_bosses = nil
+        if mod._boss_offers then mod._boss_offers:reset() end
         mod._versus_mode_checked_bosses = nil
         mod._infected_lobby_plan = nil
         mod._replicated_lobby_plan = nil
@@ -26050,6 +25952,7 @@ mod.on_setting_changed = function(setting_id)
 end
 
 mod.on_disabled = function()
+    if mod._boss_offers then mod._boss_offers:reset() end
     mod._night_vision_enabled = false
     VersusModeState.clear_night_vision()
     if mod._control and mod._control.remote_client then
@@ -26086,6 +25989,7 @@ mod.on_disabled = function()
 end
 
 mod.on_unload = function()
+    if mod._boss_offers then mod._boss_offers:reset() end
     mod._night_vision_enabled = false
     VersusModeState.clear_night_vision()
     VersusModeState.clear_allied_heretic_outlines()

@@ -6,6 +6,49 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Boss offers require consent, reserve ownership and expire safely',`
+local create=(function() ${fs.readFileSync(path.join(base,'VersusMode_boss_offers.lua'),'utf8')} end)()
+local t=0;local enabled=true;local capacity=true;local taken=0;local sent={}
+local a={};local b={};local roles={a,b};local e={unit=1,breed={name='boss'},queued_at=0}
+local pending={[1]=e};local alive=true
+local env={now=function()return t end,host=function()return true end,enabled=function()return enabled end,
+ local_eligible=function()return true end,alive=function()return alive end,roles=function()return roles end,
+ role_eligible=function(r)return r==a or r==b end,boss_eligible=function()return alive end,
+ capacity=function()return capacity end,send=function(r,p)sent[#sent+1]={role=r,payload=p}end,
+ possess=function(entry,r)taken=taken+1;pending[entry.unit]=nil;return true end}
+local o=create(env);o:update(pending)
+assert(taken==0 and o.active)
+local first=o.active.role;local second=first==a and b or a
+assert(first.spawn_picker_until==1)
+local id=o.active.id
+assert(not o:answer(second,id,true) and o.active)
+assert(not o:answer(first,id,false) and taken==0)
+o:update(pending);assert(o.active.role==second)
+assert(o:answer(second,o.active.id,true) and taken==1)
+assert(not o:answer(second,id,true) and taken==1)
+-- Timeout never possesses and offers the next role instead.
+pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending);t=16;o:update(pending)
+assert(o.active.role==second and taken==1)
+alive=false;assert(not o:answer(second,o.active.id,true) and taken==1)
+alive=true;pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
+capacity=false;assert(not o:answer(o.active.role,o.active.id,true) and taken==1)
+capacity=true;pending[1]={unit=1,breed=e.breed,queued_at=t};o:update(pending)
+enabled=false;o:update(pending);assert(not o.active and taken==1)
+-- Native popup exposes explicit Yes/No, ignores repeats and closes on expiry.
+local shown=0;local removed=0;local popup;local reply
+Managers={event={trigger=function(_,event,data,cb)
+ if event=='event_show_ui_popup' then shown=shown+1;popup=data;cb(7)else removed=removed+1 end
+end}}
+env.host=function()return false end;env.text=function(k)return k end;env.label=function(k)return k end
+env.reply=function(i,accept)reply={i,accept}end
+local client=create(env)
+local payload={kind='boss_offer',offer_id=10,breed='boss',remaining=15}
+client:receive(payload);client:receive(payload);assert(shown==1 and #popup.options==2)
+popup.options[2].callback();assert(reply[1]==10 and reply[2]==false and removed==1)
+client:receive(payload);assert(shown==1)
+payload.offer_id=11;client:receive(payload);popup.options[1].callback();assert(reply[2]==true)
+payload.offer_id=12;client:receive(payload);t=t+16;client:update();assert(not client.local_offer)
+`);
 run('Havoc lieutenant inventory resolves consistently without mutating native templates',`
 local hook;local enabled=true
 local mod={hook=function(_,_,_,f)hook=f end};local MinionVisualLoadout={}

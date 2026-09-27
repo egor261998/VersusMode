@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.56 - Boss takeover offers (2026-09-27)
+---------------------------------------
+
+- Offer naturally spawned bosses to Heretics with localized Yes/No buttons and a 15-second timeout.
+- Reserve each offer on the host, validate acceptance, and try the next player after a decline or timeout.
+- Support host and Realms clients, close stale popups, and exclude explicit picker spawns.
+
 3.0.55 - Single Daemonhost choice (2026-09-27)
 --------------------------------------------
 

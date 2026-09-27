@@ -359,17 +359,27 @@ return {
         ["zh-tw"] = "手動部署及隱蔽部署與每名存活行動隊員之間的最小距離。預設：5 公尺。",
     },
     auto_takeover_normal_bosses = {
-        ru = "Автоматически назначать боссов",
-        en = "Automatically assign bosses",
+        ru = "Предлагать перехват боссов",
+        en = "Offer boss takeover",
         ["zh-cn"] = "自动分配首领",
         ["zh-tw"] = "自動分配首領",
     },
     auto_takeover_normal_bosses_tooltip = {
-        ru = "Когда обычный или ослабленный босс готов, передать его свободному игроку за еретиков.",
-        en = "When a full-strength or weakened boss becomes ready, assign it to an available Heretic controller.",
+        ru = "Предлагать еретикам управление появившимся боссом. На ответ «Да» или «Нет» даётся 15 секунд.",
+        en = "Offer Heretics control of a spawned boss, with 15 seconds to answer Yes or No.",
         ["zh-cn"] = "完整强度或弱化的首领就绪时，将其分配给可用的异端操控者。",
         ["zh-tw"] = "完整強度或弱化的首領就緒時，將其分配給可用的異端操控者。",
     },
+    boss_offer_title = {
+        ru = "Перехватить босса?",
+        en = "Take control of the boss?",
+    },
+    boss_offer_description = {
+        ru = "Появился %s. Перехватить управление? Текущий еретик вернётся под управление ИИ. На ответ — 15 секунд.",
+        en = "%s has appeared. Take control? Your current enemy will return to AI control. You have 15 seconds to decide.",
+    },
+    boss_offer_yes = { ru = "Да", en = "Yes" },
+    boss_offer_no = { ru = "Нет", en = "No" },
     max_infected_controlled_bosses = {
         ru = "Максимум боссов под управлением игроков",
         en = "Maximum player-controlled bosses",
