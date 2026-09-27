@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.51"
+mod.version = "3.0.52"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -925,6 +925,7 @@ local ATTACKS = {
         primary = { label = "Vomit", action_name = "vomit", beast_path = "vomit" },
         heavy = { label = "Body Slam", action_name = "melee_attack_body_slam_aoe", beast_path = "body_slam", cancellable = true },
         special = { label = "Consume", action_name = "consume", beast_path = "consume", requires_vomit = true, cancellable = true },
+        alternate = { label = "Spit Out", action_name = "spit_out", beast_path = "spit_out", targetless = true },
     },
     renegade_captain = {
         primary = {
@@ -1370,6 +1371,7 @@ VersusModeState.hud_attack_label_keys = {
     ["Claw Attack"] = "hud_attack_claw",
     ["Combo Attack"] = "hud_attack_combo",
     ["Consume"] = "hud_attack_consume",
+    ["Spit Out"] = "hud_attack_spit_out",
     ["Plasma Shot"] = "hud_attack_plasma_shot",
     ["Crusher Cleave"] = "hud_attack_crusher_cleave",
     ["Crusher Strike"] = "hud_attack_crusher_strike",
@@ -17938,7 +17940,7 @@ end
 
 function Specialist.request_beast_spit_out(state, slot)
     local behavior = state.blackboard and state.blackboard.behavior
-    if slot ~= "special" or state.breed.name ~= "chaos_beast_of_nurgle"
+    if slot ~= "alternate" or state.breed.name ~= "chaos_beast_of_nurgle"
         or not behavior or not valid_player_target(behavior.consumed_unit) then
         return false
     end
@@ -17952,7 +17954,7 @@ function Specialist.request_beast_spit_out(state, slot)
     local t = gameplay_time()
     behavior.force_spit_out = true
     if state.perception_component then state.perception_component.aggro_state = "aggroed" end
-    state.requested_attack = { label = "Consume", action_name = "spit_out", beast_path = "spit_out", targetless = true }
+    state.requested_attack = { label = "Spit Out", action_name = "spit_out", beast_path = "spit_out", targetless = true }
     state.command_action_complete = nil
     state.attack_started = nil
     state.attack_min_until = t
@@ -18025,7 +18027,10 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
 
     attack = Specialist.resolve_immediate_casual_primary(state, attack, preferred_target)
 
-    if Specialist.request_beast_spit_out(state, slot) then return end
+    if state.breed.name == "chaos_beast_of_nurgle" and slot == "alternate" then
+        Specialist.request_beast_spit_out(state, slot)
+        return
+    end
 
     if state.breed.name == SNIPER_BREED_NAME and slot == "primary" and not state.sniper_laser_active then
         set_status(state, mod:localize("sniper_aim_required"), 2)
@@ -25602,7 +25607,7 @@ mod:hook(BtBeastOfNurgleConsumeAction, "leave", function(func, self, unit, breed
         if reason == "done" and not destroy and valid_player_target(blackboard.behavior.consumed_unit) then
             -- running_action still names Consume during leave; start the
             -- queued command on the next selector evaluation instead.
-            state.requested_attack = { label = "Consume", action_name = "spit_out", beast_path = "spit_out", targetless = true }
+            state.requested_attack = { label = "Spit Out", action_name = "spit_out", beast_path = "spit_out", targetless = true }
             state.command_action_complete = nil
             state.attack_started = nil
             state.attack_min_until = t

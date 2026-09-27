@@ -27,7 +27,7 @@ current=nil;local called=false
 hooks._update_aiming(function()called=true end,{},1,10,{}, {},{})
 assert(called)
 `);
-run('Beast queued F completes Consume before selecting Spit Out',`
+run('Beast queued alternate completes Consume before selecting Spit Out',`
 local Specialist={};local hooks={};local state
 local function valid_player_target(u)return u=='player' end
 local function gameplay_time()return 10 end
@@ -41,7 +41,7 @@ ${source.slice(source.indexOf('mod:hook(BtBeastOfNurgleConsumeAction, "leave"'),
 local bb={behavior={consumed_unit='player'}}
 state={unit='beast',breed={name='chaos_beast_of_nurgle'},blackboard=bb,
  behavior={_brain={running_action=function()return 'consume' end}},requested_attack={beast_path='consume'}}
-assert(Specialist.request_beast_spit_out(state,'special'))
+assert(Specialist.request_beast_spit_out(state,'alternate'))
 assert(state.beast_spit_pending and state.requested_attack.beast_path=='consume')
 local result=hooks.run(function()error('should finish queued consume')end,{},'beast',{},bb,{}, {},0,10)
 assert(result=='done')
@@ -174,21 +174,22 @@ for _,name in ipairs({'chaos_spawn','chaos_plague_ogryn','chaos_beast_of_nurgle'
  assert(resolved_attacks_for_state(s)==direct)
 end
 `);
-run('Beast F releases a consumed player without a new aim target',`
+run('Beast alternate releases a consumed player without a new aim target',`
 local Specialist={};local now=20;local wakes=0
 local function gameplay_time()return now end
 local function valid_player_target(u)return u=='player' end
 local function safe_extension_call(ext,method,value)assert(method=='set_brain_enabled' and value);wakes=wakes+1 end
 ${fn('Specialist.request_beast_spit_out')}
 local s={breed={name='chaos_beast_of_nurgle'},blackboard={behavior={}},perception_component={}}
-assert(not Specialist.request_beast_spit_out(s,'special'))
+assert(not Specialist.request_beast_spit_out(s,'alternate'))
 s.blackboard.behavior.consumed_unit='player'
 assert(not Specialist.request_beast_spit_out(s,'primary'))
-assert(Specialist.request_beast_spit_out(s,'special'))
+assert(not Specialist.request_beast_spit_out(s,'special'))
+assert(Specialist.request_beast_spit_out(s,'alternate'))
 assert(s.blackboard.behavior.force_spit_out and s.requested_attack.targetless and s.requested_attack.action_name=='spit_out')
 assert(s.perception_component.aggro_state=='aggroed' and s.attack_deadline==25 and wakes==1)
-now=21;assert(Specialist.request_beast_spit_out(s,'special') and wakes==1 and s.attack_deadline==25)
-s.breed.name='chaos_spawn';assert(not Specialist.request_beast_spit_out(s,'special'))
+now=21;assert(Specialist.request_beast_spit_out(s,'alternate') and wakes==1 and s.attack_deadline==25)
+s.breed.name='chaos_spawn';assert(not Specialist.request_beast_spit_out(s,'alternate'))
 `);
 run('Shotgunners restore ranged animation after melee without AI turn poses',`
 local Specialist={free_aim=function(s)return s.free end}

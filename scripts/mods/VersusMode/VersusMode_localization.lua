@@ -2141,10 +2141,14 @@ return {
         ["zh-tw"] = "連擊",
     },
     hud_attack_consume = {
-        ru = "Поглотить / выплюнуть",
-        en = "Devour / spit out",
+        ru = "Поглотить",
+        en = "Devour",
         ["zh-cn"] = "吞噬",
         ["zh-tw"] = "吞噬",
+    },
+    hud_attack_spit_out = {
+        ru = "Выплюнуть",
+        en = "Spit out",
     },
     hud_attack_crusher_cleave = {
         ru = "Размашистый удар",

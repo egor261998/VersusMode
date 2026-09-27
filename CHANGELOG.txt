@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.52 - Separate Beast spit input (2026-09-27)
+---------------------------------------------
+
+- Move Spit Out to alternate attack, matching Chaos Spawn Grab, and keep Consume on special attack.
+- Show separate localized actions and ignore empty-mouth release commands.
+
 3.0.51 - Plasma charge time (2026-09-27)
 --------------------------------------
 
