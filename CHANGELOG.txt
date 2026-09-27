@@ -1,6 +1,11 @@
 Versus Mode changelog
 =====================
 
+3.0.49 - Picker group order (2026-09-27)
+--------------------------------------
+
+- Order picker tabs as melee, ranged, then bosses.
+
 3.0.48 - Beast manual spit selection (2026-09-27)
 -----------------------------------------------
 

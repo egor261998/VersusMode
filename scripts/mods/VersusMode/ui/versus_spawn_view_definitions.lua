@@ -34,7 +34,7 @@ for _, name in ipairs({ "title", "hint" }) do
     }, name)
 end
 local function visible(content) return content.visible ~= false end
-for i, group in ipairs({ "bosses", "ranged", "melee" }) do
+for i, group in ipairs({ "melee", "ranged", "bosses" }) do
     local name = "group_" .. group
     node(name, 180 + (i - 1) * 480, 120, 440, 50)
     widgets[name] = UIWidget.create_definition({

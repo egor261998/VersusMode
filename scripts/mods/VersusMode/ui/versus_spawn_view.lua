@@ -37,7 +37,7 @@ VersusModeSpawnView.on_enter = function(self)
         widgets.cancel.content.text = mod:localize("training_return")
         widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_training_return")
     end
-    for _, group in ipairs({ "bosses", "ranged", "melee" }) do
+    for _, group in ipairs({ "melee", "ranged", "bosses" }) do
         local group_id = group
         local widget = widgets["group_" .. group]
         if widget then
@@ -47,7 +47,7 @@ VersusModeSpawnView.on_enter = function(self)
         end
     end
     local selected = self._selected and self._choices[self._selected]
-    self:cb_group(selected and selected.group or "bosses", selected)
+    self:cb_group(selected and selected.group or "melee", selected)
     mod.spawn_picker_hold(true)
 end
 
@@ -68,7 +68,7 @@ VersusModeSpawnView.cb_group = function(self, group, preferred)
     self._hovered = nil
     self._hover_initialized = false
     local widgets = self._widgets_by_name
-    for _, id in ipairs({ "bosses", "ranged", "melee" }) do
+    for _, id in ipairs({ "melee", "ranged", "bosses" }) do
         local widget = widgets["group_" .. id]
         if widget then
             widget.style.background.color = id == group and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
