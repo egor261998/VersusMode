@@ -59,6 +59,9 @@ portraits.draw(nil,retained,nil,card,{1,0,1},{110,110})
 assert(rect_calls==initial*2 and destroyed==initial,'moving must replace cached geometry')
 portraits.release(card);assert(destroyed==initial*2 and card._portrait_cache==nil)
 portraits.release(card);assert(destroyed==initial*2)
+portraits.draw(nil,retained,nil,card,{0,0,1},{110,110})
+portraits.release(card,true)
+assert(destroyed==initial*2 and card._portrait_cache==nil,'owned GUI teardown must not enqueue per-pixel removals')
 portrait_json='{'..table.concat(result,',')..'}'
 `;
 if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(to_jsstring(lua.lua_tostring(L,-1)));

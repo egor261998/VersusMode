@@ -146,10 +146,12 @@ function portraits.build(breed)
 end
 
 local unavailable = {}
-function portraits.release(content)
+function portraits.release(content, renderer_will_destroy)
     local cache = content._portrait_cache
     content._portrait_cache = nil
-    if cache then
+    -- BaseView destroys its owned GUI as a whole immediately after on_exit.
+    -- Do not enqueue thousands of individual removals before that destruction.
+    if cache and not renderer_will_destroy then
         for _, id in ipairs(cache.ids) do UIRenderer.destroy_bitmap(cache.renderer, id) end
     end
 end
