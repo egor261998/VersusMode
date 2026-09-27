@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.17"
+mod.version = "3.0.18"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -6541,8 +6541,56 @@ local function grenade_locked_target_solution(state, target_unit)
     }
 end
 
+function VersusModeState.grenade_arc_payload(solution)
+    if not solution or not solution.points or #solution.points < 2 then return nil end
+    if solution.hud_payload then return solution.hud_payload end
+    local function pack(box)
+        local v = box:unbox()
+        return { Vector3.x(v), Vector3.y(v), Vector3.z(v) }
+    end
+    local payload = { points = {}, bounce_segments = {}, area_radius = solution.area_radius }
+    for i, point in ipairs(solution.points) do
+        if i > GRENADE_PREVIEW_MAX_POINTS then break end
+        payload.points[i] = pack(point)
+        payload.bounce_segments[i] = solution.bounce_segments and solution.bounce_segments[i] == true or false
+    end
+    payload.impact_position = solution.impact_position and pack(solution.impact_position)
+    solution.hud_payload = payload
+    return payload
+end
+
+function VersusModeState.decode_grenade_arc(payload)
+    if type(payload) ~= "table" or type(payload.points) ~= "table"
+        or #payload.points < 2 or #payload.points > GRENADE_PREVIEW_MAX_POINTS then return nil end
+    local function unpack_point(point)
+        if type(point) ~= "table" then return nil end
+        for i = 1, 3 do
+            local n = point[i]
+            if type(n) ~= "number" or n ~= n or math.abs(n) > 100000 then return nil end
+        end
+        return Vector3Box(Vector3(point[1], point[2], point[3]))
+    end
+    local solution = { valid = true, points = {}, bounce_segments = {} }
+    for i, point in ipairs(payload.points) do
+        local boxed = unpack_point(point)
+        if not boxed then return nil end
+        solution.points[i] = boxed
+        solution.bounce_segments[i] = type(payload.bounce_segments) == "table" and payload.bounce_segments[i] == true or false
+    end
+    if payload.impact_position ~= nil then
+        solution.impact_position = unpack_point(payload.impact_position)
+        if not solution.impact_position then return nil end
+    end
+    local radius = payload.area_radius
+    solution.area_radius = type(radius) == "number" and radius == radius and radius >= 0 and radius <= 100 and radius or 5
+    return solution
+end
+
 local function destroy_grenade_preview(state)
     if state then
+        state.grenade_authoritative_arc = nil
+        state.grenade_pending_arc = nil
+        state.grenade_pending_arc_until = nil
         state.grenade_preview_solution = nil
         state.grenade_preview_next_update = nil
     end
@@ -6641,6 +6689,7 @@ local function update_manual_aim_preview(state)
     end
 
     if GRENADIER_BREEDS[state.breed.name] and state.grenadier_target_lock == false then
+        if state.attack_deadline and (state.grenade_committed_solution or state.grenade_authoritative_arc) then return end
         local t = gameplay_time()
 
         if t < (state.grenade_preview_next_update or 0) then
@@ -12690,6 +12739,12 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
             wanted_rotation = QuaternionBox(solution.wanted_rotation:unbox()),
             anim_event = solution.anim_event,
             trajectory_kind = solution.trajectory_kind,
+            -- Solvers allocate fresh boxed points; later previews never mutate this path.
+            points = solution.points,
+            bounce_segments = solution.bounce_segments,
+            impact_position = solution.impact_position,
+            area_radius = solution.area_radius,
+            has_impact = solution.has_impact,
         }
     end
 
@@ -16833,6 +16888,7 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
             attack_label = state and state.requested_attack and state.requested_attack.label or nil,
             burst_total = state and state.burst_total,
             burst_remaining = state and state.burst_remaining,
+            grenade_arc = state and VersusModeState.grenade_arc_payload(state.grenade_committed_solution),
             melee_preview_yaw = state and state.command_aim_yaw,
             melee_preview_pitch = state and state.command_aim_pitch,
             attack_phase = state and state.attack_phase,
@@ -17522,6 +17578,11 @@ function VersusModeState.apply_remote_status(payload)
         state.attack_deadline = payload.attack_active == true and math.huge or nil
         state.remote_attack_cancellable = payload.attack_cancellable == true
         state.remote_attack_label = type(payload.attack_label) == "string" and payload.attack_label or nil
+        state.grenade_authoritative_arc = state.attack_deadline and VersusModeState.decode_grenade_arc(payload.grenade_arc) or nil
+        if state.grenade_authoritative_arc or payload.kind == "error" then
+            state.grenade_pending_arc = nil
+            state.grenade_pending_arc_until = nil
+        end
         local total, remaining = payload.burst_total, payload.burst_remaining
         if type(total) == "number" and total > 0 and total < math.huge
             and type(remaining) == "number" and remaining >= 0 and remaining <= total then
@@ -17775,6 +17836,10 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
             end
         end
 
+        if attack and attack.grenadier_path == "far" and not state.attack_deadline then
+            state.grenade_pending_arc = state.grenade_preview_solution
+            state.grenade_pending_arc_until = gameplay_time() + 2
+        end
         VersusModeState.send_client_action("attack_" .. slot, {
             hound_aim_pitch = attack
                 and (attack.hound_trajectory or attack.hound_instant_pounce)
@@ -20510,8 +20575,17 @@ mod.grenade_trajectory_hud_data = function()
 
     if HOUND_BREEDS[state.breed.name] and state.hound_pounce_preview_active then
         solution = state.hound_pounce_preview_solution
-    elseif GRENADIER_BREEDS[state.breed.name] and state.grenadier_target_lock == false then
-        solution = state.grenade_preview_solution
+    elseif GRENADIER_BREEDS[state.breed.name] then
+        if state.remote_client then
+            solution = state.grenade_authoritative_arc
+                or state.grenade_pending_arc_until and gameplay_time() < state.grenade_pending_arc_until and state.grenade_pending_arc
+            if not solution and state.attack_deadline then return nil end
+        elseif state.attack_deadline then
+            -- Do not fall back to the live camera during a committed throw.
+            solution = state.grenade_committed_solution
+            if not solution then return nil end
+        end
+        solution = solution or state.grenadier_target_lock == false and state.grenade_preview_solution
     end
 
     if not solution or not solution.points or #solution.points < 2 then

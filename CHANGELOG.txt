@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.18 - Freeze grenade HUD on the committed throw (2026-09-27)
+------------------------------------------------------------
+
+- Preserve solved trajectory points, bounces and impact area with the grenade launch.
+- Render the committed arc during wind-up instead of recalculating the camera arc.
+- Replicate bounded, validated arc points from the host to the controlling client.
+- Hold the client preview pending confirmation and expire unanswered requests.
+- Test both bombers, interrupted throws, pending requests and arc serialization.
+
 3.0.17 - Lock the Hound's charged pounce (2026-09-27)
 --------------------------------------------------
 

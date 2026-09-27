@@ -84,6 +84,36 @@ assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
 assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
+run('Committed grenade HUD and authoritative arc roundtrip',`
+local now=1;local function gameplay_time()return now end
+local mod={};local VersusModeState={};local GRENADE_PREVIEW_MAX_POINTS=129
+local Vector3=setmetatable({x=function(v)return v[1]end,y=function(v)return v[2]end,z=function(v)return v[3]end},{__call=function(_,x,y,z)return {x,y,z}end})
+local function Vector3Box(v)return {unbox=function()return v end}end
+${fn('VersusModeState.grenade_arc_payload')}
+${fn('VersusModeState.decode_grenade_arc')}
+local original={valid=true,points={Vector3Box({1,2,3}),Vector3Box({4,5,6})},bounce_segments={true},impact_position=Vector3Box({4,5,6}),area_radius=5}
+local payload=VersusModeState.grenade_arc_payload(original)
+assert(VersusModeState.grenade_arc_payload(original)==payload,'immutable path should reuse its network representation')
+local decoded=VersusModeState.decode_grenade_arc(payload)
+assert(decoded.points[2]:unbox()[3]==6 and decoded.bounce_segments[1] and decoded.area_radius==5)
+assert(VersusModeState.decode_grenade_arc({points={{1,2,3},{1,0/0,3}}})==nil)
+local huge={};for i=1,130 do huge[i]={1,2,3}end;assert(VersusModeState.decode_grenade_arc({points=huge})==nil)
+local HOUND_BREEDS={};local GRENADIER_BREEDS={renegade_grenadier=true,cultist_grenadier=true}
+${source.slice(source.indexOf('mod.grenade_trajectory_hud_data = function()'),source.indexOf('mod.controlled_enemy_status_data = function()'))}
+local live={points={1,2}};local moved={points={3,4}}
+for breed in pairs(GRENADIER_BREEDS)do
+ local s={possessed=true,breed={name=breed},grenadier_target_lock=false,grenade_preview_solution=live};mod._control=s
+ assert(mod.grenade_trajectory_hud_data()==live)
+ s.attack_deadline=10;s.grenade_committed_solution=original;s.grenade_preview_solution=moved
+ assert(mod.grenade_trajectory_hud_data()==original,'camera movement must not replace committed arc')
+ s.grenade_committed_solution=nil;assert(mod.grenade_trajectory_hud_data()==nil,'do not show a different arc on interruption')
+ s.remote_client=true;s.grenade_authoritative_arc=decoded
+ assert(mod.grenade_trajectory_hud_data()==decoded)
+ s.grenade_authoritative_arc=nil;s.attack_deadline=nil;s.grenade_pending_arc=original;s.grenade_pending_arc_until=2
+ now=1;assert(mod.grenade_trajectory_hud_data()==original)
+ now=3;assert(mod.grenade_trajectory_hud_data()==moved,'unconfirmed request must expire')
+end
+`);
 run('Hound charge lock and primary input consumption',`
 local now=0;local mode='charge';local math_max,math_min=math.max,math.min
 local function gameplay_time()return now end
