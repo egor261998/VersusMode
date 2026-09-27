@@ -132,6 +132,8 @@ local VersusModeState = {
         { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost", label_key = "melee_marker_chaos_mutator_daemonhost" },
         { name = "renegade_captain", label = "Scab Captain", label_key = "spawn_scab_captain" },
         { name = "cultist_captain", label = "Dreg Captain" },
+        { name = "renegade_twin_captain", label = "Scab Lieutenant (plasma)", label_key = "spawn_havoc_lieutenant_ranged" },
+        { name = "renegade_twin_captain_two", label = "Scab Lieutenant (sword)", label_key = "spawn_havoc_lieutenant_melee" },
     },
     -- Manual boss selection does not enable automatic takeover of map bosses.
     allow_boss_reinforcements = false,
@@ -445,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.53"
+mod.version = "3.0.54"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -19770,6 +19772,18 @@ mod.clear_versus_roster = function()
 end
 
 -- Consume the override only for this explicit spawn, not for nested/native spawns.
+-- Havoc lieutenants use the twin breeds with the native Havoc inventory.
+-- Resolve the same outfit on both authority and husks; no custom assets or
+-- network breed ids are needed. Versus presents these breeds as lieutenants.
+mod:hook(MinionVisualLoadout, "resolve", function(func, inventory, zone, slots, breed_name, seed)
+    if setting("enable_versus_mode")
+        and (breed_name == "renegade_twin_captain" or breed_name == "renegade_twin_captain_two")
+        and inventory.havoc_twin_visual_loadout then
+        zone = "havoc_twin_visual_loadout"
+    end
+    return func(inventory, zone, slots, breed_name, seed)
+end)
+
 mod:hook_require("scripts/managers/minion/minion_spawn_manager", function(manager_class)
     mod:hook(manager_class, "replacement_breed", function(func, self, breed_name)
         local context = mod._exact_spawn_context

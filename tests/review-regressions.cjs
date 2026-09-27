@@ -6,6 +6,20 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Havoc lieutenant inventory resolves consistently without mutating native templates',`
+local hook;local enabled=true
+local mod={hook=function(_,_,_,f)hook=f end};local MinionVisualLoadout={}
+local function setting()return enabled end
+${source.slice(source.indexOf('mod:hook(MinionVisualLoadout, "resolve"'),source.indexOf('mod:hook_require("scripts/managers/minion/minion_spawn_manager"'))}
+local inventory={havoc_twin_visual_loadout={},default={}}
+local function resolve(items,zone,slots,breed,seed)assert(items==inventory and seed==123);return zone end
+for _,name in ipairs({'renegade_twin_captain','renegade_twin_captain_two'})do
+ assert(hook(resolve,inventory,'dust',nil,name,123)=='havoc_twin_visual_loadout')
+end
+assert(hook(resolve,inventory,'dust',nil,'renegade_captain',123)=='dust')
+enabled=false;assert(hook(resolve,inventory,'dust',nil,'renegade_twin_captain',123)=='dust')
+assert(inventory.default~=inventory.havoc_twin_visual_loadout)
+`);
 run('Controlled plasma charges for one second in both aim modes',`
 local hooks={};local current
 local mod={hook=function(_,_,name,f)hooks[name]=f end}
@@ -279,11 +293,11 @@ const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
 run('Expanded roster fits all cards and preserves unique choices',`
 local VersusModeState={respawn_breeds=${source.slice(...roster.range)},breeds={},specialist_variants_enabled=function()return false end}
 local seen={};for _,entry in ipairs(VersusModeState.respawn_breeds)do assert(not seen[entry.name]);seen[entry.name]=true;VersusModeState.breeds[entry.name]={} end
-assert(#VersusModeState.respawn_breeds==24)
+assert(#VersusModeState.respawn_breeds==26)
 for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant','chaos_plague_ogryn','chaos_spawn','chaos_beast_of_nurgle','chaos_ogryn_houndmaster','chaos_daemonhost','chaos_mutator_daemonhost','renegade_captain','cultist_captain'})do assert(seen[name],name) end
 ${fn('VersusModeState.available_spawn_choices')}
-assert(#VersusModeState.available_spawn_choices()==24)
-VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==23)
+assert(#VersusModeState.available_spawn_choices()==26)
+VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==25)
 `);
 if(!/local MAX_CARDS = 28/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 28 cards');
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));

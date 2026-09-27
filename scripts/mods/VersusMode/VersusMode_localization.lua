@@ -2150,6 +2150,14 @@ return {
         ru = "Скаб-капитан",
         en = "Scab Captain",
     },
+    spawn_havoc_lieutenant_ranged = {
+        ru = "Скаб-лейтенант (плазма)",
+        en = "Scab Lieutenant (plasma)",
+    },
+    spawn_havoc_lieutenant_melee = {
+        ru = "Скаб-лейтенант (меч)",
+        en = "Scab Lieutenant (sword)",
+    },
     hud_attack_spit_out = {
         ru = "Выплюнуть",
         en = "Spit out",

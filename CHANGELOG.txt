@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.54 - Havoc lieutenants (2026-09-27)
+-------------------------------------
+
+- Add plasma and sword Scab Lieutenant cards using the native Havoc twin breeds and inventory.
+- While Versus is enabled, resolve twin inventory as Havoc lieutenants on both host and modded clients, including map-spawned twins.
+- Keep Scab Captain as a separate character.
+
 3.0.53 - Boss picker cleanup (2026-09-27)
 ---------------------------------------
 
