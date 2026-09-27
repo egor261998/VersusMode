@@ -12,7 +12,7 @@ local function is_server()return server end
 local function setting()return 10 end
 local mod={localize=function(_,x)return x end,info=function()end,echo=function()end,_realms_compat={peer_compatible=function()return true end}}
 local role={infected_human=true};local choices={{name='sniper'},{name='gunner'}}
-local VersusModeState={respawn_breeds=choices,breeds={sniper=true,gunner=true},local_role=function()return role end,
+local VersusModeState={respawn_breeds=choices,breeds={sniper={},gunner={}},local_role=function()return role end,
  local_active=function()return true end,spawn_selection_enabled=function()return true end,control_for_peer=function()end,
  available_spawn_choices=function()return choices end,publish_roster=function()end,respawn_label=function(n)return n end,
  echo_localized=function()end,send_remote_respawn_notice=function()end,send_remote_status=function()end,
@@ -37,6 +37,12 @@ VersusModeState.record_breed_death(role,{breed={name='gunner'}})
 VersusModeState.schedule_respawn(role);check(role.respawn_breed=='sniper')
 now=160;check(VersusModeState.breed_cooldown(role,'sniper')==0);check(VersusModeState.cycle_respawn(role,nil,'sniper'))
 check(VersusModeState.breed_cooldown(role,'gunner')==30)
+choices[#choices+1]={name='boss'};VersusModeState.breeds.boss={is_boss=true}
+for i=1,20 do VersusModeState.schedule_respawn(role);check(role.respawn_breed~='boss') end
+role.death_choices={{name='sniper'}};role.death_choice_pending=true
+check(not VersusModeState.cycle_respawn(role,nil,'gunner'))
+check(role.death_choice_pending)
+check(VersusModeState.cycle_respawn(role,nil,'sniper'));check(not role.death_choice_pending)
 server=false;VersusModeState.record_breed_death(role,{breed={name='sniper'}});check(VersusModeState.breed_cooldown(role,'sniper')==0)
 print(count..' authoritative cooldown checks passed')
 `;

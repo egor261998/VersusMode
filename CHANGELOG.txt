@@ -1,3 +1,8 @@
+3.0.58
+- Bosses are takeover-only; excluded from reinforcement spawning.
+- Death offers five random non-boss enemies, chosen by the host; respawn waits for selection.
+- Offers prefer ready breeds, preserve cooldowns, and cannot be rerolled by reopening the menu.
+
 Versus Mode changelog
 =====================
 

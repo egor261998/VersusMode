@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.57"
+mod.version = "3.0.58"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -3395,7 +3395,7 @@ function VersusModeState.available_spawn_choices()
     for i = 1, #VersusModeState.respawn_breeds do
         local entry = VersusModeState.respawn_breeds[i]
 
-        if VersusModeState.breeds[entry.name] then
+        if VersusModeState.breeds[entry.name] and not VersusModeState.breeds[entry.name].is_boss then
             choices[#choices + 1] = entry
         end
     end
@@ -3404,13 +3404,33 @@ function VersusModeState.available_spawn_choices()
         for i = 1, #VersusModeState.variant_spawn_choices do
             local entry = VersusModeState.variant_spawn_choices[i]
 
-            if VersusModeState.breeds[entry.name] then
+            if VersusModeState.breeds[entry.name] and not VersusModeState.breeds[entry.name].is_boss then
                 choices[#choices + 1] = entry
             end
         end
     end
 
     return choices
+end
+
+function VersusModeState.create_death_choices(role)
+    local ready, cooling, seen = {}, {}, {}
+    for _, entry in ipairs(VersusModeState.available_spawn_choices()) do
+        if not seen[entry.name] then
+            seen[entry.name] = true
+            local pool = VersusModeState.breed_cooldown(role, entry.name) == 0 and ready or cooling
+            pool[#pool + 1] = entry
+        end
+    end
+    local choices = {}
+    for _, pool in ipairs({ ready, cooling }) do
+        while #pool > 0 and #choices < 5 do
+            choices[#choices + 1] = table.remove(pool, math.random(#pool))
+        end
+    end
+    role.death_choices = choices
+    role.death_choice_pending = #choices > 0
+    role.death_choice_id = (role.death_choice_id or 0) + 1
 end
 
 function VersusModeState.cooldown_store(role)
@@ -3473,7 +3493,7 @@ end
 
 function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, variant_id)
     if not is_server()
-        or not VersusModeState.spawn_selection_enabled()
+        or not (VersusModeState.spawn_selection_enabled() or role and role.death_choices)
         or not role
         or not role.infected_human
         or role.assigned_boss_unit
@@ -3481,7 +3501,7 @@ function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, var
         return false
     end
 
-    local choices = VersusModeState.available_spawn_choices()
+    local choices = role.death_choices or VersusModeState.available_spawn_choices()
 
     if #choices == 0 then
         return false
@@ -3527,6 +3547,7 @@ function VersusModeState.cycle_respawn(role, requesting_peer_id, breed_name, var
 
     role.respawn_breed = selected.name
     role.respawn_variant = selected.variant_id
+    role.death_choice_pending = false
     role.last_respawn_breed = selected.name
     role.respawn_ready_notified = false
     role.spawn_check = nil
@@ -4334,6 +4355,9 @@ function VersusModeState.roster_payload()
             peer_id = role.infected_peer_id,
             respawn_breed = role.respawn_breed,
             respawn_variant = role.respawn_variant,
+            death_choices = role.death_choices,
+            death_choice_pending = role.death_choice_pending == true,
+            death_choice_id = role.death_choice_id,
             breed_cooldowns = VersusModeState.breed_cooldown_payload(role),
             respawn_remaining = role.respawn_ready_at and math_max(0, role.respawn_ready_at - gameplay_time()) or nil,
             unique_id = tostring(role.infected_unique_id),
@@ -4462,6 +4486,9 @@ function VersusModeState.apply_replicated_roster(payload)
         role.infected_peer_id = VersusModeState.normalize_peer_id(entry.peer_id)
         role.infected_local_player_id = entry.local_player_id
         role.respawn_breed = type(entry.respawn_breed) == "string" and entry.respawn_breed or nil
+        role.death_choices = type(entry.death_choices) == "table" and entry.death_choices or nil
+        role.death_choice_pending = entry.death_choice_pending == true
+        role.death_choice_id = entry.death_choice_id
         role.respawn_variant = type(entry.respawn_variant) == "string"
             and VersusModeState.valid_variant(role.respawn_breed, entry.respawn_variant)
             and entry.respawn_variant
@@ -7867,7 +7894,7 @@ function VersusModeState.schedule_respawn(role)
     for i = 1, #VersusModeState.respawn_breeds do
         local entry = VersusModeState.respawn_breeds[i]
 
-        if VersusModeState.breeds[entry.name] then
+        if VersusModeState.breeds[entry.name] and not VersusModeState.breeds[entry.name].is_boss then
             choices[#choices + 1] = entry
         end
     end
@@ -7899,6 +7926,8 @@ function VersusModeState.schedule_respawn(role)
     end
     local delay = math_max(0, setting("infected_respawn_delay"))
 
+    role.death_choices = nil
+    role.death_choice_pending = false
     role.respawn_breed = selected.name
     role.respawn_variant = nil
     role.last_respawn_breed = selected.name
@@ -9186,6 +9215,14 @@ function VersusModeState.random_safe_spawn(role, relaxed)
 end
 
 function VersusModeState.spawn_position_for_role(role, remote_payload)
+    if role and role.death_choice_pending then
+        return false, mod:localize("death_picker_hint")
+    end
+    local breed = role and VersusModeState.breeds[role.respawn_breed]
+    if breed and breed.is_boss then
+        return false, mod:localize("hud_boss_takeover_only")
+    end
+
     if VersusModeState.random_safe_spawn_enabled() then
         return VersusModeState.random_safe_spawn(role)
     end
@@ -10686,6 +10723,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
         VersusModeState.schedule_respawn(versus_role)
 
         if controlled_unit_dead then
+            VersusModeState.create_death_choices(versus_role)
             versus_role.automatic_respawn_not_before = gameplay_time()
                 + VersusModeState.death_camera_drop_duration
                 + VersusModeState.death_camera_hold_duration
@@ -17411,7 +17449,12 @@ function VersusModeState.update_automatic_respawns()
     local attempted = false
 
     for _, role in pairs(VersusModeState.roles()) do
+        local queued_breed = role.respawn_breed and VersusModeState.breeds[role.respawn_breed]
+        if queued_breed and queued_breed.is_boss then
+            VersusModeState.schedule_respawn(role)
+        end
         local ready = role.respawn_breed
+            and not role.death_choice_pending
             and VersusModeState.breed_cooldown(role, role.respawn_breed) == 0
             and t >= (role.respawn_ready_at or math.huge)
             and t >= (role.automatic_respawn_not_before or 0)
@@ -18590,7 +18633,7 @@ function VersusModeState.receive_remote_action(peer_id, payload)
 
         role.remote_spawn_action_sequence = payload.sequence
 
-        if not VersusModeState.spawn_selection_enabled() then
+        if not VersusModeState.spawn_selection_enabled() and not role.death_choices then
             VersusModeState.send_remote_status(peer_id, mod:localize("infected_spawn_selection_disabled"), "error")
 
             return false
@@ -19876,7 +19919,7 @@ mod.cycle_infected_spawn = function(is_pressed, force_action)
         return
     end
 
-    if not VersusModeState.spawn_selection_enabled() then
+    if not VersusModeState.spawn_selection_enabled() and not (VersusModeState.local_role() or {}).death_choices then
         mod:echo("Versus Mode: " .. mod:localize("infected_spawn_selection_disabled"))
 
         return
@@ -19916,7 +19959,8 @@ function mod.spawn_picker_group(name)
 end
 
 mod.spawn_picker_choices = function()
-    local choices = VersusModeState.available_spawn_choices()
+    local role = VersusModeState.local_role()
+    local choices = role and role.death_choices or VersusModeState.available_spawn_choices()
     local result = {}
     for i = 1, #choices do
         local entry = choices[i]
@@ -19925,7 +19969,7 @@ mod.spawn_picker_choices = function()
             label = VersusModeState.respawn_label(entry.name, entry.variant_id),
             portrait = ENEMY_PORTRAITS[entry.name] or ENEMY_PORTRAIT_FALLBACK,
             portrait_breed = entry.name,
-            group = mod.spawn_picker_group(entry.name),
+            group = not (role and role.death_choices) and mod.spawn_picker_group(entry.name) or nil,
         }
     end
     return result
@@ -19934,7 +19978,7 @@ end
 mod.spawn_picker_available = function()
     if VersusModeState.training_available() then return true end
     local role = VersusModeState.local_role()
-    return setting("enable_versus_mode") and VersusModeState.spawn_selection_enabled()
+    return setting("enable_versus_mode") and (VersusModeState.spawn_selection_enabled() or role and role.death_choices)
         and role and role.infected_human and not role.assigned_boss_unit
         and not mod._control and not mod._death_camera
 end
@@ -19958,7 +20002,7 @@ mod.spawn_picker_matches = function(entry)
         return state.breed.name == entry.name and state.variant_id == entry.variant_id
     end
     local role = VersusModeState.local_role()
-    return role and role.infected_human and role.respawn_breed == entry.name
+    return role and role.infected_human and not role.death_choice_pending and role.respawn_breed == entry.name
         and role.respawn_variant == entry.variant_id or false
 end
 
@@ -21304,6 +21348,17 @@ mod.update = function(dt)
     VersusModeState.refresh_possession_camera_player_body()
     VersusModeState.update_redeployment_geography()
     local picker_ui = Managers.ui
+    local picker_role = VersusModeState.local_role()
+    if picker_ui and picker_role and picker_role.death_choice_pending
+        and picker_role.death_choice_shown ~= picker_role.death_choice_id
+        and mod.spawn_picker_available()
+        and not picker_ui:view_instance("versus_mode_spawn_view")
+        and mod.prepare_versus_view("versus_mode_spawn_view") then
+        picker_ui:open_view("versus_mode_spawn_view", nil, nil, nil, nil, {})
+        if picker_ui:view_instance("versus_mode_spawn_view") then
+            picker_role.death_choice_shown = picker_role.death_choice_id
+        end
+    end
     if picker_ui and picker_ui:view_instance("versus_mode_spawn_view") then
         if mod.spawn_picker_available() then
             if is_server() then mod.spawn_picker_hold(true) end

@@ -362,6 +362,21 @@ for _,value in ipairs({false,{}, {draw=false},{draw=function()end}})do
 end
 mod._portraits=nil;assert(build().widget_definitions.enemy_1.passes[4].pass_type=='texture')
 `);
+run('Death choices contain five unique non-boss enemies and prefer ready breeds',`
+local role={};local VersusModeState={respawn_breeds={},breeds={},specialist_variants_enabled=function()return false end,breed_cooldown=function(_,name)return name=='enemy1' and 60 or 0 end}
+for i=1,8 do local name='enemy'..i;VersusModeState.respawn_breeds[i]={name=name};VersusModeState.breeds[name]={is_boss=i==8} end
+${fn('VersusModeState.available_spawn_choices')}
+${fn('VersusModeState.create_death_choices')}
+for attempt=1,50 do
+ VersusModeState.create_death_choices(role)
+ assert(role.death_choice_pending and #role.death_choices==5 and role.death_choice_id==attempt)
+ local seen={};for _,entry in ipairs(role.death_choices)do assert(not seen[entry.name] and entry.name~='enemy8' and entry.name~='enemy1');seen[entry.name]=true end
+end
+VersusModeState.breed_cooldown=function()return 60 end
+VersusModeState.create_death_choices(role);assert(#role.death_choices==5)
+VersusModeState.respawn_breeds={{name='enemy1'}}
+VersusModeState.create_death_choices(role);assert(#role.death_choices==1)
+`);
 const stateTable=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='VersusModeState')).init[0];
 const roster=stateTable.fields.find(f=>f.key.name==='respawn_breeds').value;
 run('Expanded roster fits all cards and preserves unique choices',`
@@ -373,6 +388,17 @@ for _,name in ipairs({'chaos_armored_hound','renegade_executor','cultist_mutant'
 ${fn('VersusModeState.available_spawn_choices')}
 assert(#VersusModeState.available_spawn_choices()==25)
 VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==24)
+VersusModeState.breeds.chaos_spawn.is_boss=true
+assert(#VersusModeState.available_spawn_choices()==23)
+for _,entry in ipairs(VersusModeState.available_spawn_choices())do assert(entry.name~='chaos_spawn') end
+VersusModeState.variant_spawn_choices={{name='chaos_spawn'}}
+VersusModeState.specialist_variants_enabled=function()return true end
+assert(#VersusModeState.available_spawn_choices()==23)
+local mod={localize=function(_,key)return key end}
+VersusModeState.random_safe_spawn_enabled=function()error('Boss must be rejected before spawn search')end
+${fn('VersusModeState.spawn_position_for_role')}
+local ok,reason=VersusModeState.spawn_position_for_role({respawn_breed='chaos_spawn'}, {})
+assert(ok==false and reason=='hud_boss_takeover_only')
 `);
 if(!/local MAX_CARDS = 28/.test(fs.readFileSync(path.join(base,'ui/versus_spawn_view_definitions.lua'),'utf8')))throw Error('Roster plus variant must fit 28 cards');
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));
