@@ -1,3 +1,11 @@
+3.1.0
+- Show Operative health and toughness above visible players while controlling a Heretic; HUD toggle enabled by default.
+- Show bonus toughness in gold with its additional amount; use native replicated health/toughness values.
+- Show floating actual damage numbers like Healthbars: red for health, blue for toughness, separately for mixed hits.
+- Attribute damage to the controlled attacker on the host and send batched results to its client.
+- Hide indicators through obstacles and for stealthed players; bound and expire damage feedback.
+- Multiplayer appearance and performance still require in-game verification.
+
 3.0.62
 - Roll boss takeover offers independently for each eligible Heretic: 25%, or 100% for Captains and Havoc Lieutenants.
 - Offer the same boss to multiple players; the first valid host-processed acceptance wins and closes the other popups.

@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.62"
+mod.version = "3.1.0"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -531,6 +531,7 @@ local DEFAULTS = {
     enable_specialist_variants = false,
     enable_infected_spawn_selection = false,
     enable_random_safe_spawn = true,
+    enable_extended_spawn_search = false,
     enable_automatic_respawn = true,
     enable_controlled_traversal = true,
     enable_versus_mode = true,
@@ -7893,7 +7894,7 @@ function VersusModeState.recycle_wait_camera_for_possession(role)
     return true
 end
 
-function VersusModeState.schedule_respawn(role)
+function VersusModeState.schedule_respawn(role, require_choice)
     role = role or mod._versus_role_test
 
     if not role
@@ -7953,7 +7954,11 @@ function VersusModeState.schedule_respawn(role)
     role.automatic_respawn_reason = nil
     role.automatic_respawn_not_before = nil
 
-    if VersusModeState.local_role() == role then
+    if require_choice then
+        -- Publish the pending choice together with the respawn timer. Clients
+        -- must never observe an intermediate automatic random reinforcement.
+        VersusModeState.create_death_choices(role)
+    elseif VersusModeState.local_role() == role then
         VersusModeState.echo_localized(
             "notice_next_infected_spawn",
             VersusModeState.respawn_label(selected.name, selected.variant_id),
@@ -8828,14 +8833,14 @@ end
 -- bounded host-side fallback from projected main-path and survivor-ring
 -- samples; the normal headroom, survivor distance, visibility, separation and
 -- history validation below still decides whether any sample is actually safe.
-function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, anchor_position, minimum_distance, maximum_distance)
+function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, anchor_position, minimum_distance, maximum_distance, limit)
     local positions = {}
 
     if not nav_world or not anchor_position then
         return positions, 0
     end
 
-    local candidate_limit = VersusModeState.random_spawn_fallback_candidate_limit or 96
+    local candidate_limit = limit or VersusModeState.random_spawn_fallback_candidate_limit or 96
     local function add_projected(sample_position)
         if not sample_position or #positions >= candidate_limit then
             return
@@ -8845,8 +8850,8 @@ function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, a
             VersusModeState.nav_queries.position_on_mesh_guaranteed,
             nav_world,
             sample_position,
-            5,
-            10
+            1,
+            1
         )
 
         if position_ok and nav_position then
@@ -8915,7 +8920,7 @@ function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, a
     -- If the authored main path is absent, truncated or currently between
     -- segments, concentric samples around the foremost survivor still give the
     -- map's navmesh a chance to provide a hidden legal position.
-    local radius = math_max(minimum_distance + 4, 8)
+    local radius = math_max(minimum_distance, 2)
 
     while radius < maximum_distance and #positions < candidate_limit do
         for angle_index = 0, 7 do
@@ -8925,15 +8930,94 @@ function VersusModeState.random_spawn_navmesh_candidates(nav_world, main_path, a
             add_projected(anchor_position + offset)
         end
 
-        radius = radius + math_max(10, (maximum_distance - minimum_distance) / 6)
+        local radius_step = maximum_distance > 50
+            and math_max(4, (maximum_distance - minimum_distance) / math_max(1, math.floor(candidate_limit / 8) - 1))
+            or 4
+        radius = radius + radius_step
     end
 
     return positions, #positions
 end
 
+-- Only live, enabled door links are candidates. Use the endpoint opposite the
+-- nearest operative, never a guessed offset behind an arbitrary level prop.
+function VersusModeState.random_spawn_door_candidates(maximum_distance)
+    local positions = {}
+    local manager = Managers.state and Managers.state.extension
+    local ok, system = pcall(function()
+        return manager and manager:system("nav_graph_system")
+    end)
+    local links = ok and system and system._smart_object_id_to_extension
+
+    for id, extension in pairs(type(links) == "table" and links or {}) do
+        local graph_ok, added = safe_extension_call(extension, "nav_graph_added", id)
+        local object_ok, object = safe_extension_call(extension, "smart_object_from_id", id)
+        local layer_ok, layer = safe_extension_call(object, "layer_type")
+        local unit_ok, unit = safe_extension_call(extension, "unit")
+        local door = unit_ok and unit and ALIVE[unit] and safe_extension(unit, "door_system")
+        local open_ok, can_open = safe_extension_call(door, "can_open")
+        if graph_ok and added and object_ok and layer_ok and layer == "doors" and open_ok and can_open then
+            local points_ok, entrance, exit = safe_extension_call(object, "get_entrance_exit_positions")
+            local both_ok, bidirectional = safe_extension_call(object, "is_bidirectional")
+            if points_ok and entrance and exit then
+                local _, entrance_distance = VersusModeState.nearest_survivor(entrance)
+                local _, exit_distance = VersusModeState.nearest_survivor(exit)
+                -- One-way links may only be traversed from entrance to exit.
+                local position = entrance_distance >= exit_distance and entrance
+                    or both_ok and bidirectional and exit
+                if position and math_min(entrance_distance, exit_distance) <= maximum_distance then
+                    positions[#positions + 1] = position
+                end
+            end
+        end
+    end
+
+    return positions
+end
+
+function VersusModeState.random_spawn_candidate_less(a, b)
+    -- A door can win over cover only when it is at most three metres farther.
+    local a_score = a.nearest_distance - (a.door and 3 or 0)
+    local b_score = b.nearest_distance - (b.door and 3 or 0)
+    if a_score ~= b_score then
+        return a_score < b_score
+    end
+    return a.index < b.index
+end
+
 function VersusModeState.validate_random_spawn_candidate(spawn_position, physics_world, minimum_distance, maximum_distance, disallowed_positions, breed_name, relaxed)
     if not spawn_position or not physics_world then
         return false, "missing position or collision world"
+    end
+
+    -- Nav data can survive beyond loaded geometry. Require both a live mesh
+    -- triangle and static ground nearby, including in the emergency fallback.
+    local manager = Managers.state and Managers.state.nav_mesh
+    local nav_world = manager and manager:nav_world()
+    local main_path = Managers.state and Managers.state.main_path
+    local cost_ok, costs = safe_extension_call(main_path, "spawn_point_cost_table")
+    local traverse_logic
+    local nav_ok, nav_position = pcall(function()
+        if cost_ok and costs then
+            traverse_logic = GwNavTraverseLogic.create(nav_world)
+            GwNavTraverseLogic.set_navtag_layer_cost_table(traverse_logic, costs)
+        end
+        return VersusModeState.nav_queries.position_on_mesh(
+            nav_world, spawn_position, 0.5, 0.5, traverse_logic
+        )
+    end)
+    -- The cost table belongs to MainPathManager; only this short-lived query
+    -- object is ours. Destroy it on success and on query failure.
+    if traverse_logic then
+        GwNavTraverseLogic.destroy(traverse_logic)
+    end
+    local floor_ok, floor_hit = pcall(
+        PhysicsWorld.raycast, physics_world, spawn_position + vector3_up() * 0.5,
+        -vector3_up(), 1, "any", "types", "statics",
+        "collision_filter", "filter_minion_mover"
+    )
+    if not nav_ok or not nav_position or not floor_ok or not floor_hit then
+        return false, "no loaded ground or active navmesh at spawn"
     end
 
     if not VersusModeState.random_spawn_spacing_ok(spawn_position, disallowed_positions) then
@@ -8967,7 +9051,7 @@ function VersusModeState.validate_random_spawn_candidate(spawn_position, physics
         return false, string.format("%.1f m from %s is below the %.1f m minimum", nearest_distance, nearest_name, minimum_distance)
     end
 
-    if not relaxed and nearest_distance > maximum_distance then
+    if nearest_distance > maximum_distance then
         return false, string.format("%.1f m from survivors exceeds the %.1f m maximum", nearest_distance, maximum_distance)
     end
 
@@ -8980,7 +9064,7 @@ function VersusModeState.validate_random_spawn_candidate(spawn_position, physics
     return true
 end
 
-function VersusModeState.random_safe_spawn(role, relaxed)
+function VersusModeState.random_safe_spawn(role, relaxed, extended)
     if not is_server() or not role then
         return false, "Random Safe selection requires the host"
     end
@@ -8998,7 +9082,7 @@ function VersusModeState.random_safe_spawn(role, relaxed)
 
     local minimum_distance = relaxed and 0 or math_max(0, setting("infected_min_spawn_distance"))
     local maximum_distance = math_max(VersusModeState.random_spawn_max_distance, minimum_distance + 5)
-    local fallback_maximum_distance = math_max(relaxed and 200 or VersusModeState.random_spawn_fallback_max_distance, minimum_distance + 5)
+    local fallback_maximum_distance = math_max(extended and 200 or VersusModeState.random_spawn_fallback_max_distance, minimum_distance + 5)
     local disallowed_positions = VersusModeState.random_spawn_disallowed(role)
     if relaxed then
         disallowed_positions = {}
@@ -9006,7 +9090,6 @@ function VersusModeState.random_safe_spawn(role, relaxed)
     local positions = {}
     local num_positions = 0
     local candidate_source = "native"
-    local query_diagnostic = "spawn groups unavailable"
     local count_ok, num_groups
 
     if nav_spawn_points then
@@ -9029,65 +9112,41 @@ function VersusModeState.random_safe_spawn(role, relaxed)
             disallowed_positions
         )
 
-        query_diagnostic = query_ok and "empty" or tostring(query_positions)
-
         if query_ok and type(query_positions) == "table" and type(query_count) == "number" then
             positions = query_positions
             num_positions = math_min(query_count, #query_positions)
         end
     end
 
-    if num_positions < 1 or relaxed then
-        local native_positions = positions
-        local native_count = num_positions
-        candidate_source = "navmesh fallback"
-        positions, num_positions = VersusModeState.random_spawn_navmesh_candidates(
-            nav_world,
-            main_path,
-            anchor_position,
-            minimum_distance,
-            fallback_maximum_distance
-        )
-        mod:info(
-            "Versus Mode: Random Safe supplemental navmesh search (%s) generated %d candidates.",
-            tostring(query_diagnostic),
-            num_positions
-        )
-
-        if relaxed then
-            for index = 1, native_count do
-                positions[#positions + 1] = native_positions[index]
+    -- Always include nearby mesh samples, even when native groups returned
+    -- distant points. Search each living operative, not just the leading one.
+    local door_positions = VersusModeState.random_spawn_door_candidates(fallback_maximum_distance)
+    local candidates = {}
+    local function add_candidates(values, door)
+        for _, position in ipairs(values) do
+            local name, distance = VersusModeState.nearest_survivor(position)
+            if name and distance <= fallback_maximum_distance then
+                candidates[#candidates + 1] = {
+                    position = position, nearest_distance = distance,
+                    door = door, index = #candidates + 1,
+                }
             end
-
-            -- The squad occupies playable space even when hidden spawn groups
-            -- are unavailable. Project each anchor and still check headroom.
-            for _, survivor_position in ipairs(survivor_positions) do
-                local ok, position = pcall(
-                    VersusModeState.nav_queries.position_on_mesh_guaranteed,
-                    nav_world, survivor_position, 5, 10
-                )
-                if ok and position then
-                    positions[#positions + 1] = position
-                end
-            end
-            num_positions = #positions
-        end
-
-        if num_positions < 1 then
-            if not relaxed then
-                return VersusModeState.random_safe_spawn(role, true)
-            end
-            return false, "no native or fallback navmesh spawn candidate was found at least "
-                .. string.format("%.0f metres from every survivor", minimum_distance)
         end
     end
-
-    for i = num_positions, 2, -1 do
-        local swap_index = math.random(1, i)
-
-        positions[i], positions[swap_index] = positions[swap_index], positions[i]
+    add_candidates(door_positions, true)
+    add_candidates(positions, false)
+    local per_survivor_limit = math_max(16, math.floor(
+        (VersusModeState.random_spawn_fallback_candidate_limit or 96) / #survivor_positions
+    ))
+    for _, survivor_position in ipairs(survivor_positions) do
+        local nearby = VersusModeState.random_spawn_navmesh_candidates(
+            nav_world, nil, survivor_position, minimum_distance, fallback_maximum_distance, per_survivor_limit
+        )
+        add_candidates(nearby, false)
     end
-
+    table.sort(candidates, VersusModeState.random_spawn_candidate_less)
+    num_positions = #candidates
+    candidate_source = "nearest loaded mesh/door"
     local last_reason = "all candidates failed final safety validation"
     local seen_positions = {}
     local checked_count = 0
@@ -9096,12 +9155,10 @@ function VersusModeState.random_safe_spawn(role, relaxed)
     local fresh_count = 0
     local recent_count = 0
     local selected
-    local fallback_fresh
-    local standard_reused
-    local fallback_reused
 
     for index = 1, num_positions do
-        local position = positions[index]
+        local candidate = candidates[index]
+        local position = candidate.position
 
         if VersusModeState.random_spawn_duplicate(position, seen_positions) then
             duplicate_count = duplicate_count + 1
@@ -9118,50 +9175,17 @@ function VersusModeState.random_safe_spawn(role, relaxed)
             )
 
             if valid then
-                local _, nearest_distance = VersusModeState.nearest_survivor(position)
-                local history_rank, history_distance = VersusModeState.random_spawn_history_rank(position)
-                local candidate = {
-                    history_distance = history_distance,
-                    history_rank = history_rank,
-                    index = index,
-                    nearest_distance = nearest_distance,
-                    position = position,
-                }
-                local standard_range = nearest_distance <= maximum_distance
-
+                candidate.history_rank = VersusModeState.random_spawn_history_rank(position)
                 valid_count = valid_count + 1
-
-                if not history_rank then
-                    fresh_count = fresh_count + 1
-
-                    if standard_range then
-                        selected = candidate
-
-                        break
-                    end
-
-                    fallback_fresh = fallback_fresh or candidate
-                else
-                    recent_count = recent_count + 1
-                    local reused = standard_range and standard_reused or fallback_reused
-
-                    if not reused
-                        or history_rank < reused.history_rank
-                        or history_rank == reused.history_rank and history_distance > reused.history_distance then
-                        if standard_range then
-                            standard_reused = candidate
-                        else
-                            fallback_reused = candidate
-                        end
-                    end
-                end
+                fresh_count = candidate.history_rank and 0 or 1
+                recent_count = candidate.history_rank and 1 or 0
+                selected = candidate
+                break
             else
                 last_reason = reason or last_reason
             end
         end
     end
-
-    selected = selected or fallback_fresh or standard_reused or fallback_reused
 
     if selected then
         local position = selected.position
@@ -9202,7 +9226,7 @@ function VersusModeState.random_safe_spawn(role, relaxed)
         )
 
         return true,
-            (relaxed and "Fallback spawn: visibility and distance limits relaxed"
+            (relaxed and "Nearby fallback: visibility and minimum distance relaxed"
                 or string.format("Random Safe: hidden, %.0f–%.0f m from nearest survivor", minimum_distance, selected_maximum)),
             spawn_position,
             spawn_rotation
@@ -9221,7 +9245,11 @@ function VersusModeState.random_safe_spawn(role, relaxed)
     )
 
     if not relaxed then
-        return VersusModeState.random_safe_spawn(role, true)
+        return VersusModeState.random_safe_spawn(role, true, extended)
+    end
+
+    if not extended and setting("enable_extended_spawn_search") == true then
+        return VersusModeState.random_safe_spawn(role, false, true)
     end
 
     return false, "no candidate passed final safety checks (" .. tostring(last_reason) .. ")"
@@ -10627,7 +10655,7 @@ function VersusModeState.scale_taunt_buffs(buff_extension, scale)
     end
 end
 
-function VersusModeState.release_control(state, reason, suppress_respawn, controlled_unit_dead)
+function VersusModeState.release_control(state, reason, suppress_respawn, controlled_unit_dead, require_choice)
     if not state then
         return
     end
@@ -10735,10 +10763,9 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
     end
 
     if not suppress_respawn and versus_role and versus_role.infected_human and is_server() then
-        VersusModeState.schedule_respawn(versus_role)
+        VersusModeState.schedule_respawn(versus_role, controlled_unit_dead or require_choice)
 
         if controlled_unit_dead then
-            VersusModeState.create_death_choices(versus_role)
             versus_role.automatic_respawn_not_before = gameplay_time()
                 + VersusModeState.death_camera_drop_duration
                 + VersusModeState.death_camera_hold_duration
@@ -10765,7 +10792,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
     end
 end
 
-local function release_possession(reason, suppress_respawn, controlled_unit_dead)
+local function release_possession(reason, suppress_respawn, controlled_unit_dead, require_choice)
     if mod._control and mod._control.remote_client and VersusModeState.release_client_control then
         if not suppress_respawn and mod._realms_compat then
             VersusModeState.send_client_action("release")
@@ -10774,7 +10801,7 @@ local function release_possession(reason, suppress_respawn, controlled_unit_dead
         return VersusModeState.release_client_control(reason, controlled_unit_dead)
     end
 
-    return VersusModeState.release_control(mod._control, reason, suppress_respawn, controlled_unit_dead)
+    return VersusModeState.release_control(mod._control, reason, suppress_respawn, controlled_unit_dead, require_choice)
 end
 
 local function enter_camera(state)
@@ -17652,6 +17679,16 @@ function VersusModeState.apply_remote_status(payload)
         return
     end
 
+    if payload.kind == "operative_damage" then
+        local state = mod.operative_health_hud_context()
+        local unit = VersusModeState.unit_from_network_id(payload.target_id)
+        if state and state.remote_client and mod._damage_feedback and unit and ALIVE[unit]
+            and VersusModeState.unit_from_network_id(payload.attacker_id) == state.unit then
+            mod._damage_feedback:receive(unit, payload.health, payload.toughness)
+        end
+        return
+    end
+
     if payload.kind == "boss_offer" or payload.kind == "boss_offer_cancel" then
         mod._boss_offers:receive(payload)
         return
@@ -17811,7 +17848,7 @@ mod.toggle_possession = function(is_pressed, force_action)
 
         return
     elseif mod._control then
-        release_possession("released.")
+        release_possession("released.", nil, nil, true)
 
         return
     end
@@ -18721,7 +18758,7 @@ function VersusModeState.receive_remote_action(peer_id, payload)
             return true
         end
 
-        VersusModeState.release_control(state, "released.")
+        VersusModeState.release_control(state, "released.", nil, nil, true)
 
         return true
     elseif payload.action == "attack_primary" then
@@ -20202,6 +20239,7 @@ mod.melee_marker_hud_data = function()
     local state = mod._control
     if not state or not state.possessed or not state.breed or not ALIVE[state.unit]
         or Managers.ui and Managers.ui:has_active_view() then return nil end
+    if mod.spawn_picker_group(state.breed.name) == "ranged" then return nil end
     if mod:get("melee_marker_" .. state.breed.name) == false then return nil end
     local attack = VersusModeState.melee_preview_attack(state, resolved_attacks_for_state(state))
     if not attack then return nil end
@@ -21247,6 +21285,7 @@ function VersusModeState.team_hud_snapshot()
                 breed = alive and state.breed.name or role.respawn_breed,
                 variant = alive and state.variant_id or role.respawn_variant,
                 alive = alive == true,
+                respawning = not alive and role.respawn_breed ~= nil and role.death_choice_pending ~= true,
                 health = current_ok and type(current) == "number" and math_max(0, current) or nil,
                 maximum = max_ok and type(maximum) == "number" and maximum > 0 and maximum or nil,
                 remaining = role.respawn_breed and VersusModeState.respawn_remaining(role) or 0,
@@ -21279,6 +21318,7 @@ function VersusModeState.receive_team_hud(payload)
                 breed = type(entry.breed) == "string" and entry.breed or nil,
                 variant = type(entry.variant) == "string" and entry.variant or nil,
                 alive = entry.alive == true,
+                respawning = entry.respawning == true or entry.respawning == nil and finite(entry.remaining) and entry.remaining > 0,
                 health = finite(entry.health) and entry.health or nil,
                 maximum = finite(entry.maximum) and entry.maximum > 0 and entry.maximum or nil,
                 remaining = finite(entry.remaining) and math_max(0, entry.remaining - VersusModeState.snapshot_age(payload.sent_at)) or 0,
@@ -21288,28 +21328,83 @@ function VersusModeState.receive_team_hud(payload)
     mod._team_hud_snapshot = { rows = rows, received_at = gameplay_time() }
 end
 
+mod.operative_health_hud_context = function()
+    local state = mod._control
+    if setting("enable_versus_mode") and setting("show_operative_health") ~= false
+        and state and state.possessed and ALIVE[state.unit]
+        and VersusModeState.local_infected_view() then
+        return state
+    end
+end
+
+mod.operative_health_hud_target = function(unit)
+    return VersusModeState.spectator_target_valid(unit)
+end
+
+mod.operative_damage_hud_target = function(unit)
+    return unit and ALIVE[unit] and not VersusModeState.is_unit(unit)
+        and not VersusModeState.player_is_hidden_from_infected(unit)
+end
+
+mod._damage_feedback = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_damage_feedback")(mod, {
+    now = gameplay_time,
+    local_owner = function()
+        local state = mod.operative_health_hud_context()
+        return state and state.unit
+    end,
+    is_local = function(state) return state == mod._control end,
+    attacker = function(unit, attacker, owner, breed)
+        if not Breed.is_player(breed) or not is_server() or not setting("enable_versus_mode") then return end
+        local state = VersusModeState.control_for_unit(owner) or VersusModeState.control_for_unit(attacker)
+        if state and state.possessed and (state.versus_role or state.training_heretic)
+            and valid_player_target(unit) then return state end
+    end,
+    send = function(event)
+        local state = event.state
+        if not state.possessed or VersusModeState.control_for_unit(state.unit) ~= state or not mod._realms_compat then return end
+        local target_id = VersusModeState.network_unit_id(event.unit)
+        local attacker_id = VersusModeState.network_unit_id(state.unit)
+        if target_id and attacker_id and state.controller_peer_id then
+            mod._realms_compat.send_status(state.controller_peer_id, {
+                kind = "operative_damage", target_id = target_id, attacker_id = attacker_id,
+                health = event.health, toughness = event.toughness,
+            })
+        end
+    end,
+})
+
 mod.heretic_team_hud_data = function()
     if not setting("enable_versus_mode") or VersusModeState.training_available() then return {} end
     local snapshot = is_server() and VersusModeState.cached_team_hud_snapshot() or mod._team_hud_snapshot
     if not snapshot or snapshot.received_at and gameplay_time() - snapshot.received_at > 3 then return {} end
     local rows = {}
+    local detailed = VersusModeState.local_infected_view()
     for i, entry in ipairs(snapshot.rows) do
         local remaining = math_max(0, entry.remaining - (gameplay_time() - (snapshot.received_at or snapshot.sent_at)))
-        rows[i] = {
-            name = entry.name,
-            portrait = ENEMY_PORTRAITS[entry.breed] or ENEMY_PORTRAIT_FALLBACK,
-            portrait_breed = entry.breed,
-            label = VersusModeState.respawn_label(entry.breed, entry.variant),
-            health = entry.health, maximum = entry.maximum,
-            status = entry.alive and "" or remaining > 0 and mod:localize("heretic_team_wait", math.ceil(remaining))
-                or mod:localize("heretic_team_ready"),
-            alive = entry.alive,
-        }
+        if not detailed then
+            rows[i] = {
+                name = entry.name, compact = true, alive = entry.alive,
+                status = mod:localize(entry.alive and "heretic_team_alive"
+                    or entry.respawning and "heretic_team_respawning" or "heretic_team_dead"),
+            }
+        else
+            rows[i] = {
+                name = entry.name,
+                portrait = ENEMY_PORTRAITS[entry.breed] or ENEMY_PORTRAIT_FALLBACK,
+                portrait_breed = entry.breed,
+                label = VersusModeState.respawn_label(entry.breed, entry.variant),
+                health = entry.health, maximum = entry.maximum,
+                status = entry.alive and "" or remaining > 0 and mod:localize("heretic_team_wait", math.ceil(remaining))
+                    or mod:localize("heretic_team_ready"),
+                alive = entry.alive,
+            }
+        end
     end
     return rows
 end
 
 mod.update = function(dt)
+    if mod._damage_feedback then mod._damage_feedback:update(dt) end
     if is_server() and setting("enable_versus_mode") and mod._realms_compat then
         mod._team_hud_send_delay = (mod._team_hud_send_delay or 0) - dt
         if mod._team_hud_send_delay <= 0 then
@@ -27045,6 +27140,12 @@ mod:register_hud_element({
 })
 
 mod._night_vision = {}
+mod:register_hud_element({
+    class_name = "HudElementVersusOperativeHealth",
+    filename = "VersusMode/scripts/mods/VersusMode/VersusMode_operative_health_hud",
+    use_hud_scale = true,
+    visibility_groups = { "alive", "dead" },
+})
 mod._night_vision.lighting = mod:io_dofile("VersusMode/scripts/mods/VersusMode/VersusMode_night_lighting")
 mod:register_hud_element({
     class_name = "HudElementVersusMeleeMarker",

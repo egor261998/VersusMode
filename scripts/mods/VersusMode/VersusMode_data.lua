@@ -55,6 +55,12 @@ return {
                         tooltip = "enable_random_safe_spawn_tooltip",
                     },
                     {
+                        setting_id = "enable_extended_spawn_search",
+                        type = "checkbox",
+                        default_value = false,
+                        tooltip = "enable_extended_spawn_search_tooltip",
+                    },
+                    {
                         setting_id = "infected_respawn_delay",
                         type = "numeric",
                         default_value = 10,
@@ -390,18 +396,7 @@ return {
                 sub_widgets = {
                     { setting_id = "melee_marker_chaos_ogryn_executor", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_renegade_executor", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_shocktrooper", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_plasma_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_cultist_shocktrooper", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_chaos_ogryn_bulwark", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_cultist_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_chaos_ogryn_gunner", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_grenadier", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_cultist_grenadier", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_flamer", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_renegade_flamer_mutator", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
-                    { setting_id = "melee_marker_cultist_flamer", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_chaos_plague_ogryn", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_chaos_spawn", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
                     { setting_id = "melee_marker_chaos_beast_of_nurgle", type = "checkbox", default_value = true, tooltip = "melee_marker_tooltip" },
@@ -534,6 +529,12 @@ return {
                 setting_id = "hud_group",
                 type = "group",
                 sub_widgets = {
+                    {
+                        setting_id = "show_operative_health",
+                        type = "checkbox",
+                        default_value = true,
+                        tooltip = "show_operative_health_tooltip",
+                    },
                     {
                         setting_id = "show_control_hud",
                         type = "checkbox",

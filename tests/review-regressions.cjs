@@ -5,7 +5,191 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+run('Spawn ranks nearby doors/cover and keeps ground safety in fallback', `
+local math_min,math_max=math.min,math.max
+local function vector3_up()return 1 end
+local mesh,ground,visible,blocked=true,true,false,false
+local function safe_extension_call(ext,method) if not ext or not ext[method] then return false end return pcall(ext[method],ext)end
+local Managers={state={nav_mesh={nav_world=function()return {}end}}}
+local PhysicsWorld={raycast=function(_,_,direction)
+ if direction<0 then return ground else return blocked end
+end}
+local VersusModeState={
+ nav_queries={position_on_mesh=function(_,p)return mesh and p end},
+ random_spawn_spacing_ok=function()return true end,
+ spawn_headroom=function()return 3 end,
+ nearest_survivor=function(p)return 'operative',p end,
+ visible_to_survivor=function()return visible and 'operative' end,
+}
+${fn('VersusModeState.validate_random_spawn_candidate')}
+${fn('VersusModeState.random_spawn_candidate_less')}
+local function valid(p,relaxed)return VersusModeState.validate_random_spawn_candidate(p,{},5,50,{},'gunner',relaxed)end
+assert(valid(8,false))
+ground=false;assert(not valid(8,false) and not valid(8,true))
+ground=true;mesh=false;assert(not valid(8,true))
+mesh=true;blocked=true;assert(not valid(8,true))
+blocked=false;assert(not valid(150,true))
+visible=true;assert(not valid(8,false) and valid(8,true))
+local created,destroyed=0,0
+Managers.state.main_path={spawn_point_cost_table=function()return 'costs' end}
+local GwNavTraverseLogic -- global APIs are resolved by the extracted function
+_G.GwNavTraverseLogic={
+ create=function()created=created+1;return {}end,
+ set_navtag_layer_cost_table=function(q,c)assert(c=='costs');q.costs=c end,
+ destroy=function()destroyed=destroyed+1 end}
+VersusModeState.nav_queries.position_on_mesh=function(_,p,_,_,q)assert(q.costs=='costs');return nil end
+assert(not valid(8,true) and created==1 and destroyed==1)
+VersusModeState.nav_queries.position_on_mesh=function()error('query failed')end
+assert(not valid(8,true) and created==2 and destroyed==2)
+local entries={{nearest_distance=45,index=1},{nearest_distance=7,index=2},
+ {nearest_distance=9,door=true,index=3},{nearest_distance=30,door=true,index=4}}
+table.sort(entries,VersusModeState.random_spawn_candidate_less)
+assert(entries[1].index==3 and entries[2].index==2 and entries[3].index==4)
+`);
+run('Door spawn uses live passable links and the far endpoint with a return route', `
+local math_min=math.min
+local ALIVE={[1]=true,[2]=true,[3]=true,[4]=true}
+local function safe_extension_call(e,m,...)
+ if not e or not e[m] then return false end
+ return pcall(e[m],e,...)
+end
+local function safe_extension(u)return {can_open=function()return u~=4 end}end
+local function link(id,added,both,a,b)
+ local object={layer_type=function()return 'doors'end,
+ get_entrance_exit_positions=function()return a,b end,is_bidirectional=function()return both end}
+ return {unit=function()return id end,nav_graph_added=function()return added end,
+ smart_object_from_id=function()return object end}
+end
+local links={
+ link(1,true,true,5,9), link(2,false,true,3,7),
+ link(3,true,false,2,8),link(4,true,true,4,8)}
+local Managers={state={extension={system=function()return {_smart_object_id_to_extension=links}end}}}
+local VersusModeState={nearest_survivor=function(p)return 'player',p end}
+${fn('VersusModeState.random_spawn_door_candidates')}
+local result=VersusModeState.random_spawn_door_candidates(50)
+assert(#result==1 and result[1]==9)
+ALIVE[1]=false;assert(#VersusModeState.random_spawn_door_candidates(50)==0)
+links={link(1,true,false,9,5)};ALIVE[1]=true
+result=VersusModeState.random_spawn_door_candidates(50)
+assert(#result==1 and result[1]==9)
+`);
+run('Nearby spawn search supplements native results and ignores old spawn history', `
+local math_min,math_max=math.min,math.max
+local function is_server()return true end
+local extended_enabled=false
+local function setting(key)if key=="enable_extended_spawn_search" then return extended_enabled end return 5 end
+local function gameplay_time()return 1 end
+local function vector3_up()return 1 end
+local function vector3_length(v)return math.abs(v)end
+local function vector3_normalize(v)return v/math.abs(v)end
+local function Vector3Box(v)return v end
+local Vector3={flat=function(v)return v end}
+local Quaternion={look=function()return 1 end}
+local mod={_random_spawn_reservations={},info=function()end}
+local Managers={state={nav_mesh={nav_world=function()return {}end},
+ main_path={nav_spawn_points=function()return {}end}}}
+local GwNavSpawnPoints={get_count=function()return 1 end}
+local supplemental=0;local doors={9};local safety=true;local far_only=false;local attempts={}
+local VersusModeState={random_spawn_max_distance=35,random_spawn_fallback_max_distance=50,
+ random_spawn_reservation_duration=3,random_spawn_group_range=12,
+ physics_world=function()return {}end,
+ random_spawn_survivors=function()return {1,2},1 end,
+ random_spawn_disallowed=function()return {}end,
+ spawn_point_queries={get_occluded_positions=function()return {40,150},2 end},
+ random_spawn_door_candidates=function()return doors end,
+ random_spawn_navmesh_candidates=function()supplemental=supplemental+1;return {7,15},2 end,
+ nearest_survivor=function(p)return 'operative',p end,
+ random_spawn_duplicate=function()return false end,
+ validate_random_spawn_candidate=function(p,_,_,max,_,_,relaxed)
+  assert(p<=max);attempts[#attempts+1]={max=max,relaxed=relaxed};return safety and (far_only and p==150 or not far_only and (p==7 or p==9))
+ end,
+ random_spawn_history_rank=function()return 6 end,
+ remember_random_spawn=function()end,
+}
+${fn('VersusModeState.random_spawn_candidate_less')}
+${fn('VersusModeState.random_safe_spawn')}
+local ok,_,position=VersusModeState.random_safe_spawn({respawn_breed='gunner'})
+assert(ok and position==9.05 and supplemental==2)
+doors={}
+ok,_,position=VersusModeState.random_safe_spawn({respawn_breed='gunner'})
+assert(ok and position==7.05)
+safety=false
+assert(not VersusModeState.random_safe_spawn({respawn_breed='gunner'}))
+-- The host checkbox adds a bounded distant pass only after BOTH nearby passes fail.
+safety=true;far_only=true
+assert(not VersusModeState.random_safe_spawn({respawn_breed='gunner'}))
+extended_enabled=true;attempts={}
+ok,_,position=VersusModeState.random_safe_spawn({respawn_breed='gunner'})
+assert(ok and position==150.05)
+local saw_near_relaxed=false;local saw_far=false
+for _,a in ipairs(attempts)do
+ if a.max==50 and a.relaxed then saw_near_relaxed=true end
+ if a.max==200 then assert(saw_near_relaxed);saw_far=true end
+end
+assert(saw_far)
+-- Enabled does not make a valid nearby deployment search farther.
+far_only=false;attempts={}
+ok,_,position=VersusModeState.random_safe_spawn({respawn_breed='gunner'})
+assert(ok and position==7.05)
+for _,a in ipairs(attempts)do assert(a.max==50)end
+safety=false
+assert(not VersusModeState.random_safe_spawn({respawn_breed='gunner'}))
+`);
 const startAttack=fn('start_attack_burst');
+run('Manual release opens the death picker on host and client without death cooldown',`
+local now=20;local role;local choices={}
+for i=1,6 do choices[i]={name='breed'..i}end
+local mod={_remote_controls={},info=function()end}
+local released=0;mod._realms_compat={release_control=function()released=released+1 end}
+local ALIVE={};local MANUAL_AIM_BREEDS={};local Specialist={destroy_hound_preview=function()end}
+local function gameplay_time()return now end
+local function is_server()return true end
+local function setting()return 3 end
+local math_max=math.max
+local function restore_captain_combat_state()end
+local function stop_manual_motion()end
+local function clear_target_outline()end
+local function destroy_grenade_preview()end
+local function restore_original_first_person_equipment()end
+local function restore_camera()end
+local deaths,cameras,notices,published=0,0,0,0
+local VersusModeState={respawn_breeds=choices,breeds={},gunner_breeds={},shotgun_breeds={},
+ death_camera_drop_duration=1,death_camera_hold_duration=2,
+ local_role=function()return role end,local_active=function()return true end,
+ available_spawn_choices=function()return choices end,breed_cooldown=function()return 0 end,
+ record_breed_death=function()deaths=deaths+1 end,start_death_camera=function()cameras=cameras+1 end,
+ echo_localized=function()notices=notices+1 end,echo_notice=function()end,
+ respawn_label=function(n)return n end,send_remote_respawn_notice=function()notices=notices+1 end,
+ restore_sniper_scope=function()end,restore_controlled_first_person_visibility=function()end,
+ restore_controlled_animation_lod=function()end,restore_controlled_health=function()end,
+ maintain_wait_camera=function()end,
+ publish_roster=function()published=published+1;assert(role.death_choice_pending and #role.death_choices==5)end}
+for _,entry in ipairs(choices)do VersusModeState.breeds[entry.name]={}end
+${fn('VersusModeState.create_death_choices')}
+${fn('VersusModeState.schedule_respawn')}
+${fn('VersusModeState.release_control')}
+for _,remote in ipairs({false,true})do
+ role={infected_human=true};local state={unit=1,player_unit=2,possessed=true,breed={name='sniper'},versus_role=role}
+ if remote then state.controller_peer_id='peer';mod._remote_controls.peer=state;mod._control=nil
+ else mod._control=state end
+ VersusModeState.release_control(state,'released.',nil,nil,true)
+ assert(not state.possessed and role.death_choice_pending and #role.death_choices==5)
+ assert(role.respawn_ready_at==23 and role.automatic_respawn_not_before==nil)
+ assert(deaths==0 and cameras==0 and notices==0)
+end
+assert(released==1 and not mod._remote_controls.peer)
+-- Death keeps its cooldown/camera; internal handoffs do not create a new picker.
+role={infected_human=true};local state={unit=1,possessed=true,breed={name='sniper'},versus_role=role};mod._control=state
+VersusModeState.release_control(state,nil,nil,true)
+assert(deaths==1 and cameras==1 and role.automatic_respawn_not_before==23)
+local before=published
+role={infected_human=true};state={unit=1,possessed=true,breed={name='sniper'},versus_role=role};mod._control=state
+VersusModeState.publish_roster=function()end
+VersusModeState.release_control(state,nil,true,nil,true)
+assert(not role.death_choice_pending and not role.respawn_ready_at and deaths==1)
+`);
+if(!source.includes('release_possession("released.", nil, nil, true)') ||
+ !source.includes('VersusModeState.release_control(state, "released.", nil, nil, true)'))throw Error('Manual release routes must request a picker');
 run('Remote camera updates reuse the persistent position box',`
 local created=0;local position=1
 local function Vector3Box(value)created=created+1;return {value=value,store=function(self,v)self.value=v end}end
@@ -765,11 +949,21 @@ local function vector3_up()return Vector3(0,0,1)end
 local function vector3_length(v)return math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)end
 local math_min,math_sin,math_cos=math.min,math.sin,math.cos
 local settings={};local mod={get=function(_,k)return settings[k]end,localize=function(_,k)return k end}
+local ranged={'renegade_gunner','cultist_gunner','chaos_ogryn_gunner','renegade_shocktrooper','cultist_shocktrooper','renegade_plasma_gunner','renegade_sniper','renegade_netgunner','renegade_grenadier','cultist_grenadier','renegade_flamer','renegade_flamer_mutator','cultist_flamer'}
+VersusModeState.breeds={renegade_twin_captain={is_boss=true}}
+VersusModeState.gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true}
+VersusModeState.shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}
+local MANUAL_AIM_BREEDS={renegade_sniper=true,renegade_netgunner=true,renegade_plasma_gunner=true}
+local GRENADIER_BREEDS={renegade_grenadier=true,cultist_grenadier=true}
+${fn('mod.spawn_picker_group')}
 local function get_mod()return mod end
 local data=(function()${fs.readFileSync(path.join(base,'VersusMode_data.lua'),'utf8')} end)()
 local count=0;for _,g in ipairs(data.options.widgets)do if g.setting_id=='melee_marker_group'then
- for _,w in ipairs(g.sub_widgets)do assert(w.type=='checkbox' and w.default_value==true);count=count+1 end
-end end;assert(count==24)
+ for _,w in ipairs(g.sub_widgets)do
+  assert(w.type=='checkbox' and w.default_value==true);count=count+1
+  for _,name in ipairs(ranged)do assert(w.setting_id~='melee_marker_'..name)end
+ end
+end end;assert(count==13)
 local s={possessed=true,unit='enemy',breed={name='chaos_ogryn_executor'},yaw=0,pitch=1.2};mod._control=s
 local ALIVE={enemy=true};local menu=false;local Managers={ui={has_active_view=function()return menu end}}
 local positions={enemy=Vector3(0,0,0),target=Vector3(2,0,0)}
@@ -796,6 +990,11 @@ free=false;p=mod.melee_marker_hud_data();assert(p.position.x==2 and p.kind=='tar
 positions.target=Vector3(8,0,0);p=mod.melee_marker_hud_data();assert(p.position.x==4 and p.kind=='reach')
 settings.melee_marker_chaos_ogryn_executor=false;assert(mod.melee_marker_hud_data()==nil)
 s.breed.name='chaos_ogryn_bulwark';assert(mod.melee_marker_hud_data()~=nil,'toggles must be independent')
+for _,name in ipairs(ranged)do
+ s.breed.name=name;settings['melee_marker_'..name]=true
+ assert(mod.melee_marker_hud_data()==nil,'ranged breeds must never draw a melee circle: '..name)
+end
+s.breed.name='renegade_twin_captain';assert(mod.melee_marker_hud_data()~=nil,'bosses keep their melee guide')
 menu=true;assert(mod.melee_marker_hud_data()==nil);menu=false
 s.possessed=false;assert(mod.melee_marker_hud_data()==nil)
 `);
