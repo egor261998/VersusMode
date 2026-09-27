@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.32"
+mod.version = "3.0.33"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12643,10 +12643,11 @@ local function start_attack_burst(state, attack, preferred_target, hound_aim_yaw
     end
 
     if attack.summon_hounds
+        or VersusModeState.shotgun_breeds[state.breed.name]
         or state.breed.name == "chaos_spawn" and attack.action_name == "leap"
         or HOUND_BREEDS[state.breed.name]
             and (attack.hound_trajectory or attack.hound_instant_pounce) then
-        -- A completed or interrupted summon, Spawn Leap, or Hound pounce can
+        -- A completed or interrupted shotgun, summon, Spawn Leap, or Hound pounce can
         -- leave its root child link and scratchpad behind while the possessed
         -- brain is disabled. Every button press is a fresh one-action command,
         -- so clear only that inactive tree state before enabling it.

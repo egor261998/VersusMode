@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.33 - Fresh shotgunner attack transitions (2026-09-27)
+------------------------------------------------------
+
+- Clear inactive behavior-tree links and scratchpad before each Scab/Dreg shotgunner command.
+- Re-evaluate weapon switching and melee selectors instead of retaining the previous attack tree.
+
 3.0.32 - Shotgun shot cooldown (2026-09-27)
 -----------------------------------------
 

@@ -5,6 +5,22 @@ const source=fs.readFileSync(path.join(base,'VersusMode.lua'),'utf8');
 const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
+const startAttack=fn('start_attack_burst');
+const resetTree=startAttack.slice(startAttack.indexOf('    if attack.summon_hounds\n') < 0 ? startAttack.indexOf('    if attack.summon_hounds\r\n') : startAttack.indexOf('    if attack.summon_hounds\n'),startAttack.indexOf('    if state.breed.name == SNIPER_BREED_NAME'));
+run('Both shotgunners reset retained tree links before the next command',`
+local VersusModeState={shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}}
+local HOUND_BREEDS={};local Specialist={};local attack={}
+table.clear=function(t)for k in pairs(t)do t[k]=nil end end
+for _,breed in ipairs({'renegade_shocktrooper','cultist_shocktrooper','renegade_gunner'})do
+ local brain={_scratchpad={stale=true},_running_child_nodes={old=true},_old_running_child_nodes={old=true},_running_leaf_node='old',_running_state_node='old'}
+ local state={breed={name=breed},behavior={_brain=brain}}
+ ${resetTree}
+ if VersusModeState.shotgun_breeds[breed]then
+  assert(next(brain._scratchpad)==nil and next(brain._running_child_nodes)==nil and next(brain._old_running_child_nodes)==nil)
+  assert(brain._running_leaf_node==nil and brain._running_state_node==nil and brain._evaluate_utility)
+ else assert(brain._scratchpad.stale and brain._running_leaf_node=='old')end
+end
+`);
 run('Shotgun commands preserve native weapon transitions',`
 local Specialist={}
 local function safe_extension_call(ext,method)return true,ext.slot end
