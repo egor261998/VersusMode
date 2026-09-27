@@ -145,7 +145,7 @@ local s={possessed=true,breed={name='chaos_hound'},hound_pounce_preview_active=t
 gated=true;mod.primary_attack(true,true);assert(s.hound_pounce_locked_fraction==nil)
 gated=false;mode='camera_pitch';assert(not Specialist.lock_hound_charge(s))
 `);
-run('Native burst counter and standard-reload restart',`
+run('Native burst counter and reload interruption',`
 local VersusModeState={gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true}}
 ${fn('VersusModeState.record_gunner_burst')}
 local s={};local scratch={num_shots=12.5,shots_fired=0}
@@ -155,6 +155,13 @@ VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_remaining==9
 scratch.shots_fired=0;VersusModeState.record_gunner_burst(s,scratch,true);assert(s.burst_remaining==0,'native reset on last shot must not refill HUD')
 scratch.num_shots=8;VersusModeState.record_gunner_burst(s,scratch,false);assert(s.burst_remaining==8 and s.burst_total==8)
 local gated=false;local paused=0;local requested=0;local sent
+local now=10;local event
+local ALIVE=setmetatable({},{__index=function()return true end})
+local function gameplay_time()return now end
+local function stop_manual_motion()end
+local function safe_anim_event(_,name)event=name end
+local Unit={has_animation_event=function(_,name)return name=='gun_jam_start' end}
+${fn('VersusModeState.gunner_reloading')}
 local function control_input_ui_gated()return gated end
 local function pause_brain(state)paused=paused+1;state.attack_deadline=nil end
 local function request_attack_for_state(_,slot)assert(slot=='primary');requested=requested+1 end
@@ -162,13 +169,24 @@ VersusModeState.send_client_action=function(action)sent=action end
 ${fn('VersusModeState.restart_gunner_burst')}
 for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
  s={possessed=true,breed={name=breed},attack_deadline=10,requested_attack={gunner_combat_range='far'}}
- local before=requested;VersusModeState.restart_gunner_burst(s);assert(requested==before+1)
+ local before=requested;VersusModeState.restart_gunner_burst(s);assert(requested==before)
+ assert(not s.attack_deadline and s.gunner_reload_until==12 and event=='gun_jam_start')
+ assert(VersusModeState.gunner_reloading(s));now=11
+ VersusModeState.restart_gunner_burst(s);assert(s.gunner_reload_until==12,'repeat R must not extend recovery')
+ now=12;assert(not VersusModeState.gunner_reloading(s));now=10;s.gunner_reload_until=nil
  s.attack_deadline=10;s.requested_attack.gunner_combat_range='melee'
- VersusModeState.restart_gunner_burst(s);assert(requested==before+1,'do not cancel melee')
- s.remote_client=true;VersusModeState.restart_gunner_burst(s);assert(sent=='restart_burst' and requested==before+1)
+ VersusModeState.restart_gunner_burst(s);assert(requested==before,'do not cancel melee')
+ s.remote_client=true;VersusModeState.restart_gunner_burst(s);assert(sent=='restart_burst' and requested==before)
 end
 assert(paused==3)
 gated=true;sent=nil;VersusModeState.restart_gunner_burst(s);assert(sent==nil)
+gated=false;s={possessed=true,breed={name='renegade_gunner'}}
+Unit.has_animation_event=function(_,name)return name=='out_of_aim' end
+VersusModeState.restart_gunner_burst(s);assert(event=='out_of_aim','native recovery fallback')
+${fn('request_attack_for_state')}
+request_attack_for_state(s,'primary') -- must return before any attack setup
+${fn('VersusModeState.refresh_control_animation')}
+assert(not VersusModeState.refresh_control_animation(s),'idle must not replace reload')
 `);
 run('Melee guide attack selection, geometry and individual settings',`
 local VersusModeState={}

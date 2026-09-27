@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.20 - Portrait ammo counter and reload interruption (2026-09-27)
+-----------------------------------------------------------------
+
+- Move the native burst counter below the controlled enemy health bar.
+- R stops ranged fire and enters a two-second weapon recovery instead of firing.
+- Use only supported animation events, with native gun-jam/out-of-aim fallback.
+- Replicate recovery to clients and prevent attacks/locomotion replacing it.
+- Preserve native burst counts; no custom magazine or reserve ammunition.
+
 3.0.19 - Russian localization and percent-format fixes (2026-09-27)
 ----------------------------------------------------------------
 

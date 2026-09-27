@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.19"
+mod.version = "3.0.20"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -12378,6 +12378,7 @@ function VersusModeState.attack_command_should_stop(state, t, attacking)
 end
 
 function VersusModeState.refresh_control_animation(state)
+    if VersusModeState.gunner_reloading(state) then return false end
     if not state
         or not state.possessed
         or not ALIVE[state.unit]
@@ -14440,6 +14441,11 @@ function VersusModeState.update_gunner_shoot_movement(state, forward_amount, rig
 end
 
 local function update_manual_movement(state, gunner_shooting)
+    if VersusModeState.gunner_reloading(state) then
+        update_manual_look(state)
+        stop_manual_motion(state, true)
+        return
+    end
     if not update_manual_look(state) then
         if gunner_shooting then
             VersusModeState.update_gunner_shoot_movement(state, 0, 0)
@@ -16489,6 +16495,10 @@ function VersusModeState.update_remote_camera_pose(state)
 end
 
 function VersusModeState.update_remote_authoritative_movement(state, gunner_shooting)
+    if VersusModeState.gunner_reloading(state) then
+        stop_manual_motion(state, true)
+        return
+    end
     local input = state.remote_input
     local t = gameplay_time()
     local forward_amount = input and t - (input.received_at or 0) <= 0.5 and input.forward or 0
@@ -16887,6 +16897,7 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
                 and state.requested_attack.cancellable == true or false,
             attack_label = state and state.requested_attack and state.requested_attack.label or nil,
             burst_total = state and state.burst_total,
+            gunner_reload_remaining = state and math.max(0, (state.gunner_reload_until or 0) - gameplay_time()) or 0,
             burst_remaining = state and state.burst_remaining,
             grenade_arc = state and VersusModeState.grenade_arc_payload(state.grenade_committed_solution),
             melee_preview_yaw = state and state.command_aim_yaw,
@@ -17584,6 +17595,10 @@ function VersusModeState.apply_remote_status(payload)
             state.grenade_pending_arc_until = nil
         end
         local total, remaining = payload.burst_total, payload.burst_remaining
+        local reload_remaining = payload.gunner_reload_remaining
+        state.gunner_reload_until = type(reload_remaining) == "number"
+            and reload_remaining > 0 and reload_remaining <= 2
+            and gameplay_time() + reload_remaining or nil
         if type(total) == "number" and total > 0 and total < math.huge
             and type(remaining) == "number" and remaining >= 0 and remaining <= total then
             state.burst_total = math.ceil(total)
@@ -17801,6 +17816,7 @@ mod.toggle_possession = function(is_pressed, force_action)
 end
 
 local function request_attack_for_state(state, slot, preferred_target, hound_aim_yaw, hound_aim_pitch, hound_charge_fraction)
+    if VersusModeState.gunner_reloading(state) then return end
     if not state or not state.possessed then
         return
     end
@@ -18321,11 +18337,17 @@ local function cycle_control_target(state)
     set_status(state, "LOCKED: " .. target_name(targets[1]), 2)
 end
 
+function VersusModeState.gunner_reloading(state)
+    return state and state.gunner_reload_until and gameplay_time() < state.gunner_reload_until or false
+end
+
 function VersusModeState.restart_gunner_burst(state)
     if not state or not state.possessed or not state.breed
+        or not ALIVE[state.unit]
         or not VersusModeState.gunner_breeds[state.breed.name]
         or state.controlled_traversal then return end
     if not state.controller_peer_id and control_input_ui_gated(state) then return end
+    if VersusModeState.gunner_reloading(state) then return end
     if state.remote_client then
         VersusModeState.send_client_action("restart_burst")
         return
@@ -18334,7 +18356,19 @@ function VersusModeState.restart_gunner_burst(state)
         if not state.requested_attack or state.requested_attack.gunner_combat_range ~= "far" then return end
         pause_brain(state)
     end
-    request_attack_for_state(state, "primary")
+    -- Native gunners count bursts, not magazines. Do not start shooting on R.
+    stop_manual_motion(state, true)
+    state.burst_total, state.burst_remaining = nil, nil
+    state.gunner_reload_until = gameplay_time() + 2
+    state.animation_heartbeat_last_event = nil
+    -- Not every gunner skeleton has a reload animation. Only send supported
+    -- events; out_of_aim is the native Scab/Dreg recovery fallback.
+    for _, event in ipairs({ "reload", "gun_jam_start", "out_of_aim" }) do
+        if Unit.has_animation_event(state.unit, event) then
+            safe_anim_event(state.animation, event)
+            break
+        end
+    end
 end
 
 function Specialist.toggle_target_lock(state)
@@ -20453,14 +20487,6 @@ mod.control_hud_data = function()
     local alternate_text, alternate_kind = attack_display(attacks.alternate)
     local special_text, special_kind = attack_display(attacks.special)
     local action_lines = {}
-    if VersusModeState.gunner_breeds[state.breed.name] then
-        action_lines[#action_lines + 1] = {
-            label = VersusModeState.native_binding_label("weapon_reload"),
-            text = state.burst_total and mod:localize("gunner_burst_counter", state.burst_remaining or 0, state.burst_total)
-                or mod:localize("gunner_burst_waiting"),
-            kind = "normal",
-        }
-    end
     local target_cycle_available, target_lock_available = VersusModeState.target_hud_capabilities(state)
 
     if target_cycle_available then
@@ -20617,6 +20643,10 @@ mod.controlled_enemy_status_data = function()
 
     return {
         name = VersusModeState.controlled_label(state),
+        ammo = VersusModeState.gunner_breeds[state.breed.name] and (
+            VersusModeState.gunner_reloading(state) and mod:localize("gunner_burst_reloading")
+            or state.burst_total and mod:localize("gunner_burst_counter", state.burst_remaining or 0, state.burst_total)
+            or mod:localize("gunner_burst_waiting")) or nil,
         portrait = ENEMY_PORTRAITS[state.breed.name] or ENEMY_PORTRAIT_FALLBACK,
         current_health = math_max(0, current_health),
         max_health = max_health,
@@ -26094,6 +26124,13 @@ local function build_embedded_hud_definitions()
                 size = { ENEMY_HEALTH_WIDTH, ENEMY_HEALTH_HEIGHT },
                 position = { 128, 15, 3 },
             },
+            enemy_ammo = {
+                parent = "enemy_status_panel",
+                horizontal_alignment = "left",
+                vertical_alignment = "center",
+                size = { 350, 20 },
+                position = { 128, 39, 3 },
+            },
         },
         widget_definitions = {
             panel = UIWidget.create_definition(passes, "versus_mode_hud"),
@@ -26216,6 +26253,16 @@ local function build_embedded_hud_definitions()
                     },
                 },
             }, "enemy_health"),
+            enemy_ammo = UIWidget.create_definition({
+                {
+                    pass_type = "text", value_id = "ammo", value = "", style_id = "ammo",
+                    style = {
+                        font_type = "machine_medium", font_size = 17,
+                        text_horizontal_alignment = "left", text_vertical_alignment = "center",
+                        text_color = { 255, 245, 245, 240 }, drop_shadow = true,
+                    },
+                },
+            }, "enemy_ammo"),
         },
     }
 end
@@ -26249,6 +26296,7 @@ HudElementVersusMode.init = function(self, parent, draw_layer, start_scale)
     self._widgets_by_name.enemy_health_background.content.visible = false
     self._widgets_by_name.enemy_health_fill.content.visible = false
     self._widgets_by_name.enemy_health_text.content.visible = false
+    self._widgets_by_name.enemy_ammo.content.visible = false
 end
 
 HudElementVersusMode._refresh_sniper_scope = function(self)
@@ -26612,6 +26660,8 @@ end
 
 HudElementVersusMode._refresh_enemy_status = function(self)
     local data = mod.controlled_enemy_status_data and mod.controlled_enemy_status_data()
+    self._widgets_by_name.enemy_ammo.content.visible = data ~= nil and data.ammo ~= nil
+    self._widgets_by_name.enemy_ammo.content.ammo = data and data.ammo or ""
     local widget_names = {
         "enemy_background",
         "enemy_portrait",
