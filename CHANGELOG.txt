@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.19 - Russian localization and percent-format fixes (2026-09-27)
+----------------------------------------------------------------
+
+- Escape literal percent signs in night-vision strength and tint labels.
+- Add 577 missing Russian translations for settings, HUD, actions and messages.
+- Keep all format arguments compatible with the existing English strings.
+- Validate all 634 keys, 2426 localized formats and literal/settings references.
+
 3.0.18 - Freeze grenade HUD on the committed throw (2026-09-27)
 ------------------------------------------------------------
 
