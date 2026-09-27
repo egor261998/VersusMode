@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.46"
+mod.version = "3.0.47"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -16473,7 +16473,6 @@ function VersusModeState.third_person_camera(state, position, look_direction, fl
         focus = safe_focus
     end
 
-    local free_aim = Specialist.free_aim(state)
     local wanted
 
     if specialist_elite_camera then
@@ -16484,9 +16483,9 @@ function VersusModeState.third_person_camera(state, position, look_direction, fl
         wanted = focus
             - flat_forward * distance
             + camera_right * setting("specialist_camera_horizontal_offset")
-    elseif free_aim then
-        wanted = focus - flat_forward * distance + vector3_up() * 0.5
     else
+        -- Keep the boss focus on the view axis, regardless of target lock.
+        -- A horizontal boom with pitched rotation moves the boss off-screen.
         wanted = focus - look_direction * distance
     end
     local hit_ok, collision_position = safe_extension_call(manager, "_smooth_camera_collision",

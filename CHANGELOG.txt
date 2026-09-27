@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.47 - Boss free-aim camera alignment (2026-09-27)
+--------------------------------------------------
+
+- Use the same pitched camera boom with and without target lock, keeping the boss focus on the view axis.
+- Remove the free-aim-only height shift while retaining camera collision handling.
+
 3.0.46 - Boss chat notification (2026-09-27)
 ------------------------------------------
 

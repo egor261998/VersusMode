@@ -6,6 +6,36 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Boss camera stays on its focus axis with or without target lock',`
+local mt={}
+local function vec(x,y,z)return setmetatable({x=x,y=y,z=z},mt)end
+mt.__add=function(a,b)return vec(a.x+b.x,a.y+b.y,a.z+b.z)end
+mt.__sub=function(a,b)return vec(a.x-b.x,a.y-b.y,a.z-b.z)end
+mt.__mul=function(a,b)return vec(a.x*b,a.y*b,a.z*b)end
+local function length(a)return math.sqrt(a.x*a.x+a.y*a.y+a.z*a.z)end
+local Vector3={length=length,distance=function(a,b)return length(a-b)end,normalize=function(a)return a*(1/length(a))end}
+local Quaternion={look=function(v)return v end}
+local function vector3_up()return vec(0,0,1)end
+local function setting(k)return k=='camera_height' and 3 or 5 end
+local function safe_extension_call(_,_,wanted)return true,wanted end
+local function gameplay_time()return 1 end
+local math_min,math_max=math.min,math.max
+local Managers={state={camera={}}}
+local Specialist={free_aim=function(s)return s.free end}
+local VersusModeState={}
+local mod={info=function()end}
+${fn('VersusModeState.camera_recovery_distance')}
+${fn('VersusModeState.third_person_camera')}
+for _,free in ipairs({true,false})do
+ for _,pitch in ipairs({-1,0,1})do
+  local s={breed={is_boss=true},free=free}
+  local origin=vec(10,20,2);local focus=origin+vec(0,0,3)
+  local forward=vec(0,math.cos(pitch),math.sin(pitch))
+  local pos,rotation=VersusModeState.third_person_camera(s,origin,forward,vec(0,1,0))
+  assert(length(pos+forward*5-focus)<0.00001 and rotation==forward)
+ end
+end
+`);
 run('Picker opens with cached pre-tab definitions and legacy choices',`
 local choices={{name='gun',label='Gun'},{name='hound',label='Hound',cd=30}}
 local held=false
