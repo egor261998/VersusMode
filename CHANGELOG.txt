@@ -1,6 +1,15 @@
 Versus Mode changelog
 =====================
 
+3.0.17 - Lock the Hound's charged pounce (2026-09-27)
+--------------------------------------------------
+
+- Primary input during the held aimed-pounce preview freezes its charge.
+- Keep direction adjustable and launch on Secondary release; reset for each preview.
+- Show locked charge in the HUD and consume Primary so it cannot launch another attack.
+- Recalculate the final preview on release and retain the existing host validation.
+- Add regression checks for all three Hound breeds and custom-input release handling.
+
 3.0.16 - Native burst HUD and night-vision scale (2026-09-27)
 ----------------------------------------------------------
 

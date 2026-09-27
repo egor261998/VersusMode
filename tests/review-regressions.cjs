@@ -84,6 +84,37 @@ assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
 assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
+run('Hound charge lock and primary input consumption',`
+local now=0;local mode='charge';local math_max,math_min=math.max,math.min
+local function gameplay_time()return now end
+local function setting()return mode end
+local HOUND_BREEDS={chaos_hound=true,chaos_armored_hound=true,chaos_hound_mutator=true}
+local Specialist={hound_charge_duration=2}
+${['hound_charge_fraction','hound_uses_charge_mode','lock_hound_charge','destroy_hound_preview'].map(n=>fn('Specialist.'+n)).join('\n')}
+local mod={};local VersusModeState={uses_custom_enemy_keybinds=function()return true end}
+local attacks=0;local updates=0;local gated=false
+local function configured_keybind_should_fire(_,pressed)return pressed==false end
+local function control_input_ui_gated()return gated end
+local function update_manual_aim_preview()updates=updates+1 end
+local function request_attack_for_state()attacks=attacks+1 end
+${source.slice(source.indexOf('mod.primary_attack = function'),source.indexOf('mod.heavy_attack = function'))}
+for breed in pairs(HOUND_BREEDS)do
+ local s={possessed=true,breed={name=breed},hound_pounce_preview_active=true,hound_pounce_charge_started_at=0}
+ mod._control=s;now=.8;mod.primary_attack(true,true)
+ assert(s.hound_pounce_locked_fraction==.4 and attacks==0)
+ now=5;assert(Specialist.hound_charge_fraction(s,now)==.4)
+ mod.primary_attack(true,true);assert(s.hound_pounce_locked_fraction==.4)
+ Specialist.destroy_hound_preview(s);assert(s.hound_pounce_locked_fraction==nil)
+ s.hound_pounce_preview_active=true;s.hound_pounce_charge_started_at=5
+ now=5.5;mod.primary_attack(true,false);assert(s.hound_pounce_locked_fraction==.25)
+ Specialist.destroy_hound_preview(s)
+ mod.primary_attack(true,true);assert(attacks==0,'generic long-hold dispatcher must not attack')
+ mod.primary_attack(false,false);assert(attacks==0 and mod._hound_primary_release_consumed==nil)
+end
+local s={possessed=true,breed={name='chaos_hound'},hound_pounce_preview_active=true,hound_pounce_charge_started_at=now};mod._control=s
+gated=true;mod.primary_attack(true,true);assert(s.hound_pounce_locked_fraction==nil)
+gated=false;mode='camera_pitch';assert(not Specialist.lock_hound_charge(s))
+`);
 run('Native burst counter and standard-reload restart',`
 local VersusModeState={gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true}}
 ${fn('VersusModeState.record_gunner_burst')}

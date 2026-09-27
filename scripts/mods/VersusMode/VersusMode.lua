@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.16"
+mod.version = "3.0.17"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -6555,6 +6555,7 @@ function Specialist.destroy_hound_preview(state)
         state.hound_pounce_preview_next_update = nil
         state.hound_pounce_charge_started_at = nil
         state.hound_pounce_charge_fraction = nil
+        state.hound_pounce_locked_fraction = nil
     end
 end
 
@@ -6563,6 +6564,9 @@ function Specialist.hound_uses_charge_mode()
 end
 
 function Specialist.hound_charge_fraction(state, t)
+    if state and state.hound_pounce_locked_fraction ~= nil then
+        return state.hound_pounce_locked_fraction
+    end
     local started_at = state and state.hound_pounce_charge_started_at or t
     local duration = Specialist.hound_charge_duration
 
@@ -6571,6 +6575,15 @@ function Specialist.hound_charge_fraction(state, t)
     end
 
     return math_max(0, math_min(1, (t - started_at) / duration))
+end
+
+function Specialist.lock_hound_charge(state)
+    if not state or not state.possessed or not HOUND_BREEDS[state.breed.name]
+        or not state.hound_pounce_preview_active or not Specialist.hound_uses_charge_mode() then return false end
+    state.hound_pounce_locked_fraction = Specialist.hound_charge_fraction(state, gameplay_time())
+    state.hound_pounce_charge_fraction = state.hound_pounce_locked_fraction
+    state.hound_pounce_preview_next_update = 0
+    return true
 end
 
 function Specialist.hound_charge_pitch(charge_fraction)
@@ -17850,6 +17863,23 @@ mod.primary_attack = function(is_pressed, force_action)
         return
     end
 
+    local state = mod._control
+    if force_action and mod._hound_primary_release_consumed then return end
+    if not force_action and mod._hound_primary_release_consumed and is_pressed == false then
+        mod._hound_primary_release_consumed = nil
+        configured_keybind_should_fire("attack_keybind", is_pressed)
+        return
+    end
+    if state and state.possessed and HOUND_BREEDS[state.breed.name]
+        and state.hound_pounce_preview_active and Specialist.hound_uses_charge_mode() then
+        if not force_action then configured_keybind_should_fire("attack_keybind", is_pressed) end
+        if is_pressed ~= false and not control_input_ui_gated(state) then
+            if not force_action then mod._hound_primary_release_consumed = true end
+            Specialist.lock_hound_charge(state)
+            update_manual_aim_preview(state)
+        end
+        return
+    end
     if not force_action and not configured_keybind_should_fire("attack_keybind", is_pressed) then
         return
     end
@@ -17902,6 +17932,7 @@ mod.heavy_attack = function(is_pressed, force_action, physical_edge)
             set_locked_target(state, nil)
             state.hound_pounce_preview_active = true
             state.hound_pounce_preview_next_update = 0
+            state.hound_pounce_locked_fraction = nil
             state.hound_pounce_charge_started_at = gameplay_time()
             state.hound_pounce_charge_fraction = Specialist.hound_uses_charge_mode() and 0 or nil
             update_manual_aim_preview(state)
@@ -17909,6 +17940,8 @@ mod.heavy_attack = function(is_pressed, force_action, physical_edge)
 
             return
         elseif is_pressed == false and state.hound_pounce_preview_active then
+            state.hound_pounce_preview_next_update = 0
+            update_manual_aim_preview(state)
             local solution = state.hound_pounce_preview_solution
 
             state.hound_pounce_preview_active = nil
@@ -20206,9 +20239,10 @@ mod.control_hud_data = function()
                     or 0
                 local percent = math.floor(math_max(0, math_min(1, charge)) * 100 + 0.5)
 
+                local locked = state.hound_pounce_locked_fraction ~= nil
                 range_state = hound_solution and hound_solution.valid
-                    and mod:localize("hound_charge_status", percent)
-                    or mod:localize("hound_charge_blocked_status", percent)
+                    and mod:localize(locked and "hound_charge_locked" or "hound_charge_status", percent)
+                    or mod:localize(locked and "hound_charge_locked_blocked" or "hound_charge_blocked_status", percent)
             elseif ready then
                 range_state = mod:localize("hound_release_to_pounce_short")
             elseif previewing then
@@ -20346,6 +20380,10 @@ mod.control_hud_data = function()
     end
 
     local primary_text, primary_kind = attack_display(attacks.primary)
+    if state.hound_pounce_preview_active and Specialist.hound_uses_charge_mode() then
+        primary_text = mod:localize(state.hound_pounce_locked_fraction ~= nil and "hound_arc_is_locked" or "hound_lock_arc")
+        primary_kind = "ready"
+    end
     local heavy_text, heavy_kind = attack_display(attacks.heavy)
     local alternate_text, alternate_kind = attack_display(attacks.alternate)
     local special_text, special_kind = attack_display(attacks.special)

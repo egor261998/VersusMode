@@ -1,4 +1,8 @@
 return {
+    hound_lock_arc = { en = "Lock pounce charge", ru = "Зафиксировать дальность прыжка" },
+    hound_arc_is_locked = { en = "Pounce charge locked", ru = "Дальность прыжка зафиксирована" },
+    hound_charge_locked = { en = "LOCKED %d%% — RELEASE TO POUNCE", ru = "ЗАФИКСИРОВАНО %d%% — ОТПУСТИ ПКМ ДЛЯ ПРЫЖКА" },
+    hound_charge_locked_blocked = { en = "LOCKED %d%% — BLOCKED", ru = "ЗАФИКСИРОВАНО %d%% — ПУТЬ ЗАКРЫТ" },
     gunner_burst_counter = { en = "Burst: %d / %d shots left — restart burst", ru = "Очередь: осталось %d / %d выстрелов — новая очередь" },
     gunner_burst_waiting = { en = "Burst: — / — — start burst", ru = "Очередь: — / — — начать очередь" },
     melee_marker_group = { en = "Melee aiming guide — Local", ru = "Точка удара в ближнем бою — локально" },
