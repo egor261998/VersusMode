@@ -203,6 +203,7 @@ mt.__add=function(a,b)return Vector3(a.x+b.x,a.y+b.y,a.z+b.z)end
 mt.__sub=function(a,b)return Vector3(a.x-b.x,a.y-b.y,a.z-b.z)end
 mt.__mul=function(a,b)return Vector3(a.x*b,a.y*b,a.z*b)end
 mt.__div=function(a,b)return Vector3(a.x/b,a.y/b,a.z/b)end
+mt.__unm=function(a)return Vector3(-a.x,-a.y,-a.z)end
 local make_vector=Vector3
 Vector3=setmetatable({flat=function(v)return make_vector(v.x,v.y,0)end},{__call=function(_,...)return make_vector(...)end})
 local function vector3_up()return Vector3(0,0,1)end
@@ -224,8 +225,14 @@ VersusModeState.locked_target_for_state=function()return 'target'end
 local function nearest_attack_target()return nil end
 VersusModeState.physics_world=function()return {}end
 local blocked=false;local PhysicsWorld={raycast=function()return blocked,blocked and Vector3(0,2,1)end}
+local BreedActions={chaos_ogryn_executor={melee_attack={width=2}}}
+${fn('VersusModeState.melee_preview_area')}
 ${source.slice(source.indexOf('mod.melee_marker_hud_data = function()'),source.indexOf('mod.target_lock_marker_hud_data = function()'))}
 local p=mod.melee_marker_hud_data();assert(p.position.y==4 and p.position.z==1 and p.kind=='reach','flat melee must ignore camera pitch')
+assert(p.area_radius==1 and p.area_position.y==4)
+BreedActions.chaos_ogryn_executor.melee_attack.width=0/0
+assert(mod.melee_marker_hud_data().area_radius==0.65,'invalid width must use finite guide radius')
+BreedActions.chaos_ogryn_executor.melee_attack.width=2
 s.attack_deadline=1;s.requested_attack=melee;s.command_aim_yaw=math.pi/2
 p=mod.melee_marker_hud_data();assert(math.abs(p.position.x-4)<.001,'windup must preserve command direction')
 s.attack_deadline=nil;s.command_aim_yaw=nil

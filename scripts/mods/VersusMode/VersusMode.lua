@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.20"
+mod.version = "3.0.21"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -20062,6 +20062,22 @@ function VersusModeState.melee_preview_attack(state, attacks)
     end
 end
 
+function VersusModeState.melee_preview_area(state, attack, position, kind)
+    local actions = BreedActions[state.breed.name]
+    local native = actions and actions[attack.action_name]
+    -- Circular visual guide only: native boxes and animated sweeps are not discs.
+    local radius = native and (native.radius or type(native.width) == "number" and native.width * 0.5)
+    if type(radius) ~= "number" or radius ~= radius or radius <= 0 or radius > 20 then radius = 0.65 end
+    local ground = position
+    local physics = VersusModeState.physics_world()
+    if physics then
+        local ok, hit, hit_position = pcall(PhysicsWorld.raycast, physics, position + vector3_up() * 0.5,
+            -vector3_up(), 4, "closest", "types", "statics", "collision_filter", "filter_minion_shooting_no_friendly_fire")
+        if ok and hit and hit_position then ground = hit_position + vector3_up() * 0.06 end
+    end
+    return { position = position, kind = kind, area_position = ground, area_radius = radius }
+end
+
 mod.melee_marker_hud_data = function()
     local state = mod._control
     if not state or not state.possessed or not state.breed or not ALIVE[state.unit]
@@ -20073,7 +20089,7 @@ mod.melee_marker_hud_data = function()
     if not origin then return nil end
     -- Area attacks without a command range are centred on the attacker.
     -- This is an aiming guide, not a prediction of the animated weapon sweep.
-    if not attack.range_max then return { position = origin + vector3_up() * 0.15, kind = "area" } end
+    if not attack.range_max then return VersusModeState.melee_preview_area(state, attack, origin + vector3_up() * 0.15, "area") end
     local reach = attack.range_max
     if type(reach) ~= "number" or reach <= 0 or reach ~= reach or reach == math.huge then return nil end
     local free_aim = Specialist.free_aim(state)
@@ -20107,7 +20123,7 @@ mod.melee_marker_hud_data = function()
         direction, reach - inset, "closest", "types", "both", "collision_filter", "filter_minion_shooting_no_friendly_fire")
     if not ok then return nil end
     if hit and hit_position then position = hit_position; kind = "contact" end
-    return { position = position, kind = kind }
+    return VersusModeState.melee_preview_area(state, attack, position, kind)
 end
 
 mod.target_lock_marker_hud_data = function()

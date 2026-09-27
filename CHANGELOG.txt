@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.21 - Red melee area guide (2026-09-27)
+-----------------------------------------
+
+- Show a red outline and translucent disc around the melee impact guide.
+- Project the guide onto static ground, using native radius/half-width when available.
+- Retain per-enemy visibility settings and committed aim direction.
+- The circle is a visual approximation, not a native hitbox guarantee.
+
 3.0.20 - Portrait ammo counter and reload interruption (2026-09-27)
 -----------------------------------------------------------------
 

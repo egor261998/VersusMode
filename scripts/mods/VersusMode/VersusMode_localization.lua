@@ -7,7 +7,7 @@ return {
     gunner_burst_waiting = { en = "Ammo (burst): — / —", ru = "Патроны (очередь): — / —" },
     gunner_burst_reloading = { en = "Preparing weapon…", ru = "Подготовка оружия…" },
     melee_marker_group = { en = "Melee aiming guide — Local", ru = "Точка удара в ближнем бою — локально" },
-    melee_marker_tooltip = { en = "Show an aiming guide for this enemy. Gold: reach/area centre; cyan: locked target in reach; orange: ray contact. Animated swings can hit elsewhere. Ranged actions hide the guide.", ru = "Показывать ориентир удара. Золотой: дальность или центр области; голубой: цель в пределах дальности; оранжевый: пересечение луча. Замах может задеть другие точки. При стрельбе указатель скрыт." },
+    melee_marker_tooltip = { en = "Show an aiming guide for this enemy. Red point and filled circle: approximate strike area. Native sweeps and boxes can hit outside the circle. Ranged actions hide the guide.", ru = "Показывать ориентир удара. Красная точка и круг с заливкой: примерная область удара. Замах и прямоугольная зона атаки могут задеть точки вне круга. При стрельбе указатель скрыт." },
     melee_marker_chaos_ogryn_executor = { en = "Crusher", ru = "Крашер" },
     melee_marker_chaos_ogryn_bulwark = { en = "Bulwark", ru = "Огрин со щитом" },
     melee_marker_renegade_gunner = { en = "Scab Gunner", ru = "Скаб-пулемётчик" },
