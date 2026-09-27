@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.35 - Shotgun ranged animation after melee (2026-09-27)
+--------------------------------------------------------
+
+- Restore native to_ranged animation before commanded shotgun aiming after melee.
+- Use native hip-fire aiming instead of interrupted AI turn animations in free aim.
+- Keep locked-target turns and shared breed action data unchanged.
+
 3.0.34 - Boss target lock toggle (2026-09-27)
 -------------------------------------------
 

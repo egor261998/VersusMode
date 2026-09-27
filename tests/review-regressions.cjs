@@ -6,6 +6,24 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Shotgunners restore ranged animation after melee without AI turn poses',`
+local Specialist={free_aim=function(s)return s.free end}
+local VersusModeState={shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}}
+table.clone=function(t)local c={};for k,v in pairs(t)do c[k]=v end;return c end
+${fn('Specialist.shotgun_aim_animation')}
+for _,name in ipairs({'renegade_shocktrooper','cultist_shocktrooper'})do
+ local events={};local pad={current_aim_anim_event='old_melee',animation_extension={anim_event=function(_,e)events[#events+1]=e end}}
+ local data={shoot_turn_anims={left='turn'},aim_anim_events={'hip_fire'}}
+ local s={unit=1,breed={name=name},attack_deadline=10,requested_attack={shotgun_combat_range='close'},free=true}
+ local directed=Specialist.shotgun_aim_animation(s,1,pad,data)
+ assert(events[1]=='to_ranged' and pad.current_aim_anim_event==nil)
+ assert(directed.shoot_turn_anims==nil and data.shoot_turn_anims.left=='turn' and directed.aim_anim_events==data.aim_anim_events)
+ s.free=false;assert(Specialist.shotgun_aim_animation(s,1,pad,data)==data)
+ s.requested_attack.shotgun_combat_range='melee';local count=#events
+ assert(Specialist.shotgun_aim_animation(s,1,pad,data)==data and #events==count)
+ assert(Specialist.shotgun_aim_animation(nil,1,pad,data)==data)
+end
+`);
 const resetTree=startAttack.slice(startAttack.indexOf('    if attack.summon_hounds\n') < 0 ? startAttack.indexOf('    if attack.summon_hounds\r\n') : startAttack.indexOf('    if attack.summon_hounds\n'),startAttack.indexOf('    if state.breed.name == SNIPER_BREED_NAME'));
 run('Both shotgunners reset retained tree links before the next command',`
 local VersusModeState={shotgun_breeds={renegade_shocktrooper=true,cultist_shocktrooper=true}}

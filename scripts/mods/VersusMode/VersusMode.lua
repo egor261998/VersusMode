@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.34"
+mod.version = "3.0.35"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -23380,6 +23380,34 @@ mod:hook(MinionAttack, "aim_at_target", function(func, unit, scratchpad, t, acti
 end)
 
 -- Player-controlled gunners do not need the AI's aim/turn anticipation.
+function Specialist.shotgun_aim_animation(state, unit, scratchpad, action_data)
+    local attack = state and state.requested_attack
+    if not state or state.unit ~= unit or not state.attack_deadline
+        or not VersusModeState.shotgun_breeds[state.breed.name]
+        or not attack or attack.shotgun_combat_range ~= "close" then
+        return action_data
+    end
+
+    -- Native combat-range transitions send this before the shooting stance.
+    -- A commanded weapon draw alone does not restore the ranged animation state.
+    scratchpad.animation_extension:anim_event("to_ranged")
+    scratchpad.current_aim_anim_event = nil
+    if Specialist.free_aim(state) then
+        -- The camera owns turning. Do not enter an AI turn animation that our
+        -- immediate-fire path would abandon before reaching hip_fire.
+        local directed_action = table.clone(action_data)
+        directed_action.shoot_turn_anims = nil
+        return directed_action
+    end
+    return action_data
+end
+
+mod:hook(BtShootAction, "_start_aiming", function(func, self, unit, t, scratchpad, action_data)
+    local state = VersusModeState.control_for_unit(unit)
+    local directed_action = Specialist.shotgun_aim_animation(state, unit, scratchpad, action_data)
+    return func(self, unit, t, scratchpad, directed_action)
+end)
+
 -- Enter shooting through the native action so weapon setup and burst cadence
 -- remain intact. Advance only the shot deadline, never effect-template settings.
 mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchpad, action_data, breed)
