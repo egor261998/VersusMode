@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.39"
+mod.version = "3.0.40"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -17999,6 +17999,11 @@ local function request_attack_for_state(state, slot, preferred_target, hound_aim
     attack = Specialist.resolve_immediate_casual_primary(state, attack, preferred_target)
 
     if Specialist.request_beast_spit_out(state, slot) then return end
+
+    if state.breed.name == SNIPER_BREED_NAME and slot == "primary" and not state.sniper_laser_active then
+        set_status(state, mod:localize("sniper_aim_required"), 2)
+        return
+    end
 
     if state.breed.name == SNIPER_BREED_NAME and state.sniper_laser_active then
         if slot == "heavy" then

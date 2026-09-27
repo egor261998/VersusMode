@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.40 - Sniper aimed shots only (2026-09-27)
+--------------------------------------------
+
+- Reject sniper primary fire unless aiming is active, including commands received from clients.
+- Keep the existing shot cooldown and show an aim-required hint.
+
 3.0.39 - Playable Scab Plasma Gunner (2026-09-27)
 ------------------------------------------------
 

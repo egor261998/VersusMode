@@ -1,4 +1,5 @@
 return {
+    sniper_aim_required = { en = "Aim before firing", ru = "Сначала включи прицеливание" },
     hud_attack_plasma_shot = { en = "Plasma Shot", ru = "Выстрел плазмой" },
     melee_marker_renegade_plasma_gunner = { en = "Scab Plasma Gunner", ru = "Скаб-плазмомётчик" },
     specialist_panel_cooldown = { en = "Shot cooldown: %.1f s", ru = "КД выстрела: %.1f с" },

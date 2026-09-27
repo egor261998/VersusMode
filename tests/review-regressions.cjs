@@ -6,6 +6,28 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Sniper requires aim on the authoritative command path',`
+local SNIPER_BREED_NAME='renegade_sniper';local status;local starts=0
+local VersusModeState={gunner_reloading=function()return false end,echo_localized=function()end}
+local Specialist={resolve_immediate_casual_primary=function(_,a)return a end,request_beast_spit_out=function()return false end}
+local mod={localize=function(_,k)return k end}
+local function control_input_ui_gated()return false end
+local function resolved_attacks_for_state()return {primary={action_name='shoot'},heavy={laser_only=true}}end
+local function set_status(_,s)status=s end
+local function start_attack_burst()starts=starts+1 end
+local function gameplay_time()return 10 end
+local function setting()return 2 end
+local function stop_manual_motion()end
+${fn('request_attack_for_state')}
+local s={possessed=true,breed={name=SNIPER_BREED_NAME}}
+request_attack_for_state(s,'primary');assert(starts==0 and status=='sniper_aim_required')
+s.controller_peer_id='client';request_attack_for_state(s,'primary');assert(starts==0)
+request_attack_for_state(s,'heavy');assert(starts==1)
+s.sniper_laser_active=true;s.sniper_fire_cooldown_until=11
+request_attack_for_state(s,'primary');assert(s.sniper_laser_active and not s.attack_deadline)
+s.sniper_fire_cooldown_until=9;request_attack_for_state(s,'primary')
+assert(s.attack_phase=='FIRING' and s.attack_deadline==12 and s.sniper_laser_active==nil)
+`);
 run('Legacy adaptive state cannot change the direct attack layout',`
 local Specialist={};local direct={primary={action_name='melee_attack'}}
 local function attacks_for_state()return direct end
