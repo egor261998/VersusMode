@@ -1,4 +1,4 @@
-Versus Mode 3.0.12
+Versus Mode 3.0.13
 ==================
 
 Versus Mode lets players join the Heretic Forces and directly control
@@ -32,7 +32,7 @@ Requirements
 - Darktide Mod Loader and Darktide Mod Framework.
 - SoloPlay for locally hosted sessions.
 - Realms for LAN sessions with remote human Heretic players.
-- The host and every participating Realms client must run Versus Mode 3.0.12.
+- The host and every participating Realms client must run Versus Mode 3.0.13.
 
 Realms itself is not modified. Versus Mode uses its supported mod-networking
 bridge and remains host-authoritative.
@@ -41,7 +41,7 @@ bridge and remains host-authoritative.
 Installation
 ------------
 
-1. Extract `VersusMode-3.0.12.zip` into the Darktide `mods` directory.
+1. Extract `VersusMode-3.0.13.zip` into the Darktide `mods` directory.
 2. Confirm this exact path exists:
    `mods/VersusMode/VersusMode.mod`
 3. Add `VersusMode` once to `mods/mod_load_order.txt` after DMF-managed
@@ -150,7 +150,7 @@ Recommended compatibility checks
 10. For each Gunner, fire in Target Lock and free aim, strafe both directions
     during a volley, then use its melee actions. Check that shots follow the
     crosshair and commands work in cover.
-11. Repeat Gunner possession with a matching 3.0.12 Realms client and review
+11. Repeat Gunner possession with a matching 3.0.13 Realms client and review
     both host and client logs for selector, animation, or RPC errors.
 12. Change Specialist camera distance, horizontal offset, and height. Compare
     a Specialist and a controlled Elite in third person; both should respond
@@ -180,7 +180,7 @@ Reporting problems
 When reporting an issue, include both host and client console logs when
 available, the map, controlled breed, action being used, whether Target Lock was
 active, and clear reproduction steps. Confirm every machine reports Versus Mode
-3.0.12 before comparing multiplayer behavior.
+3.0.13 before comparing multiplayer behavior.
 
 Local changes: restricted Heretic roster and nearest target
 -----------------------------------------------------------
@@ -216,14 +216,16 @@ The host validates each requested breed and variant against its allowed list.
 Local changes: Gunner and Reaper crosshair aiming
 ------------------------------------------------
 Scab Gunner, Dreg Gunner and Reaper are available for random respawns and
-manual selection again. All three always use the camera crosshair, like
-the Trapper, in first and third person. Target lock is disabled for them;
-their native weapon, spread, volley timing and melee attacks are retained.
+manual selection again. All three start with target lock OFF. Hold Q to
+toggle target lock; with lock ON, tap Q to select the nearest valid target.
+With lock OFF, shots follow the camera; Scab and Dreg use zero AI spread.
+With lock ON, native aiming tracks the selected target. Weapon effects,
+volley timing and melee attacks are retained.
 The picker now has room for all ten breeds plus the optional Trapper variant.
 
 Local changes: immediate controlled ranged fire
 ----------------------------------------------
-Scab Gunner, Dreg Gunner, Reaper, Trapper and Sniper skip AI preparation
+In free aim, Scab Gunner, Dreg Gunner, Reaper, Trapper and Sniper skip AI preparation
 waits before firing under player control. Native shooting still creates
 projectiles and handles weapon effects, burst cadence and cooldowns.
 Sniper laser-only aim remains non-firing. Ordinary AI is unaffected.
@@ -247,7 +249,7 @@ The existing NEXT REINFORCEMENT HUD uses this same authoritative assignment.
 An unconfirmed request shows an error after five seconds and allows retry.
 All module and asset paths remain relative; no machine-specific paths are used.
 
-Built-in night vision in 3.0.12
+Built-in night vision in 3.0.13
 -------------------------------
 Night vision runs only on the Heretic side and needs no extra mod.
 Optics/ramp adapted from Wobin's Preysight: https://github.com/Wobin/Preysight
@@ -255,15 +257,15 @@ The green wash, vignette, procedural scanlines and grain use native UI rendering
 The camera light follows the possessed enemy, not the hidden player shell.
 Preysight and SimpleAssets must not be enabled for this setup.
 
-Per-player Heretic cooldowns (3.0.12)
+Per-player Heretic cooldowns (3.0.13)
 ----------------------------------
 Death locks that enemy breed for 60 seconds for its controller. Other players
 keep their own timers; variants of the same breed share its cooldown.
 Picker cards update the remaining seconds live and unlock automatically.
 The existing general respawn delay still applies. The host enforces both
-selection and spawn checks; install 3.0.12 on the host and all clients.
+selection and spawn checks; install 3.0.13 on the host and all clients.
 
-Psykhanium practice (3.0.12)
+Psykhanium practice (3.0.13)
 --------------------------
 Enable Versus Mode and enter the local Psykhanium. Use the configured Heretic
 roster-menu or enemy-selection key to open cards. Click an enemy to spawn and
@@ -272,7 +274,7 @@ or click Return to Operative. Esc only closes the menu. The possession key also
 releases control. No Realms role assignment is needed; remote clients are not
 supported by this local training path. Regular matches keep their cooldowns.
 
-Heretic team HUD (3.0.12)
+Heretic team HUD (3.0.13)
 ------------------------
 A right-side panel displays human Heretic players, their enemy portraits and
 health, or respawn countdowns. Host snapshots update twice per second.

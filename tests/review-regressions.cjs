@@ -6,10 +6,22 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const shotHook=source.slice(source.indexOf('mod:hook(MinionAttack, "shoot_hit_scan"'),source.indexOf('mod:hook(MinionAttack, "get_attack_delay"'));
+const aimHook=source.slice(source.indexOf('mod:hook(MinionAttack, "aim_at_target"'),source.indexOf('-- Player-controlled gunners do not need'));
+const manualDeclaration=ast.body.find(n=>n.type==='LocalStatement'&&n.variables.some(v=>v.name==='MANUAL_AIM_BREEDS'));
+const aimModes=`
+${source.slice(...manualDeclaration.range)}
+local HOUND_BREEDS={chaos_hound=true}
+local Specialist={casual_supported=function()return false end}
+local function is_specialist_breed(b)return b.tags and b.tags.special end
+VersusModeState.controlled_elite_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true}
+${fn('Specialist.target_mode_supported')}
+${fn('Specialist.free_aim')}
+`;
 run('Controlled Scab and Dreg shot direction and native isolation',`
 local current;local ray='crosshair';local callback;local MinionAttack={}
 local mod={hook=function(_,_,_,f)callback=f end}
 local VersusModeState={gunner_breeds={renegade_gunner=true,cultist_gunner=true,chaos_ogryn_gunner=true},control_for_unit=function()return current end}
+${aimModes}
 local function camera_aim_ray()return ray end
 ${fn('VersusModeState.controlled_gunner_shot')}
 ${shotHook}
@@ -25,8 +37,9 @@ local function fire(pos,spread)
  assert(callback(native,'world','physics','unit','target','weapon','muzzle','ai_dodge',template,3,perception,action)=='endpoint')
 end
 for _,breed in ipairs({'renegade_gunner','cultist_gunner'})do
- current={possessed=true,unit='unit',attack_deadline=10,breed={name=breed},requested_attack={gunner_combat_range='far'}}
+ current={possessed=true,unit='unit',attack_deadline=10,breed={name=breed},requested_attack={gunner_combat_range='far'},grenadier_target_lock=false}
  fire('crosshair',0)
+ current.grenadier_target_lock=true;fire('ai_dodge',3);current.grenadier_target_lock=false
  ray='moved_crosshair';fire('moved_crosshair',0);ray='crosshair'
  current.possessed=false;fire('ai_dodge',3);current.possessed=true
  current.requested_attack.gunner_combat_range='close';fire('ai_dodge',3)
@@ -34,6 +47,41 @@ for _,breed in ipairs({'renegade_gunner','cultist_gunner'})do
 end
 current.breed.name='chaos_ogryn_gunner';fire('ai_dodge',3)
 current=nil;fire('ai_dodge',3)
+local function state_look_direction()return nil,'forward' end
+${aimHook}
+for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
+ current={possessed=true,unit='unit',attack_deadline=10,breed={name=breed},requested_attack={gunner_combat_range='far'},grenadier_target_lock=false}
+ local stored;local scratch={current_aim_position={store=function(_,p)stored=p end}}
+ local calls=0;local function native_aim()calls=calls+1;return 'native_lock' end
+ assert(callback(native_aim,'unit',scratch,0,{},current.breed)==true and stored=='crosshair' and calls==0)
+ current.grenadier_target_lock=true;stored=nil
+ assert(callback(native_aim,'unit',scratch,0,{},current.breed)=='native_lock' and stored==nil and calls==1)
+end
+`);
+run('Gunner lock toggles, HUD capabilities and client forwarding',`
+local VersusModeState={};${aimModes}
+local sent;VersusModeState.send_client_action=function(action)sent=action end
+local function control_input_ui_gated()return false end
+local function set_status(s,message)s.status=message end
+local function set_locked_target(s,target)s.locked_target=target end
+local function nearest_attack_target()return 'nearest' end
+local function target_name(t)return t end
+local function destroy_grenade_preview()end
+Specialist.destroy_hound_preview=function()end
+local function update_manual_aim_preview()end
+${fn('Specialist.toggle_target_lock')}
+${fn('VersusModeState.target_hud_capabilities')}
+for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})do
+ local s={possessed=true,breed={name=breed},grenadier_target_lock=false}
+ assert(Specialist.free_aim(s))
+ local cycle,lock=VersusModeState.target_hud_capabilities(s);assert(cycle and lock)
+ Specialist.toggle_target_lock(s);assert(s.grenadier_target_lock and s.locked_target=='nearest' and not Specialist.free_aim(s))
+ Specialist.toggle_target_lock(s);assert(s.grenadier_target_lock==false and s.locked_target==nil and Specialist.free_aim(s))
+ s.attack_deadline=10;Specialist.toggle_target_lock(s);assert(s.grenadier_target_lock==false)
+ s.attack_deadline=nil;s.remote_client=true;Specialist.toggle_target_lock(s);assert(sent=='target_lock' and s.grenadier_target_lock==false)
+end
+assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
+assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
 run('Cooldown persistence, packet age and expiry',`

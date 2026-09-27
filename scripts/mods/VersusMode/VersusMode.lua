@@ -426,7 +426,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.12"
+mod.version = "3.0.13"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -553,12 +553,9 @@ local MUTANT_BREEDS = {
     cultist_mutant_mutator = true,
 }
 local POXBURSTER_BREED_NAME = "chaos_poxwalker_bomber"
--- Gunners share the always-on crosshair mode with the Trapper. Their native
--- camera-directed volleys use MinionAttack.get_aim_position below.
+-- Sniper and Trapper always use the crosshair. Gunners use the ordinary
+-- target-mode toggle and start in free aim like the other controlled elites.
 local MANUAL_AIM_BREEDS = {
-    renegade_gunner = true,
-    cultist_gunner = true,
-    chaos_ogryn_gunner = true,
     renegade_sniper = true,
     renegade_netgunner = true,
 }
@@ -9533,7 +9530,7 @@ local function pause_brain(state)
         end
     end
 
-    if (state.first_person or MANUAL_AIM_BREEDS[state.breed.name]) and state.blackboard and state.blackboard.aim then
+    if (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name]) and state.blackboard and state.blackboard.aim then
         state.blackboard.aim.controlled_aiming = false
     end
 
@@ -10465,7 +10462,7 @@ function VersusModeState.release_control(state, reason, suppress_respawn, contro
 
     if not controlled_unit_dead
         and state.attack_deadline
-        and (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or state.captain_combat_restore) then
+        and (state.first_person or MANUAL_AIM_BREEDS[state.breed.name] or VersusModeState.gunner_breeds[state.breed.name] or state.captain_combat_restore) then
         pause_brain(state)
     end
 
@@ -22902,7 +22899,8 @@ end)
 
 mod:hook(MinionAttack, "shoot_hit_scan", function(func, world, physics_world, unit, target_unit, weapon_item, fx_source_name, shoot_position, shoot_template, optional_spread_multiplier, perception_component, action_data)
     local state = VersusModeState.controlled_gunner_shot(unit)
-    if state and (state.breed.name == "renegade_gunner" or state.breed.name == "cultist_gunner") then
+    if state and Specialist.free_aim(state)
+        and (state.breed.name == "renegade_gunner" or state.breed.name == "cultist_gunner") then
         local aim_position = camera_aim_ray(state)
         if aim_position then
             -- Resolve the camera point at shot time, after AI dodge targeting.
@@ -22923,7 +22921,7 @@ end)
 
 mod:hook(MinionAttack, "aim_at_target", function(func, unit, scratchpad, t, action_data, breed)
     local state = VersusModeState.controlled_gunner_shot(unit)
-    local aim_position = state and camera_aim_ray(state)
+    local aim_position = state and Specialist.free_aim(state) and camera_aim_ray(state)
     if aim_position then
         -- The shot follows the camera even while the body animation turns.
         -- Returning the native AI's body-angle gate would restart aiming on
@@ -22944,6 +22942,7 @@ mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchp
 
     if not state or state.unit ~= unit or not state.attack_deadline
         or not VersusModeState.gunner_breeds[state.breed.name]
+        or not Specialist.free_aim(state)
         or not attack or attack.gunner_combat_range ~= "far" then
         return func(self, unit, t, scratchpad, action_data, breed)
     end

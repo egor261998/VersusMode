@@ -1,6 +1,14 @@
 Versus Mode changelog
 =====================
 
+3.0.13 - Optional Gunner target lock (2026-09-27)
+----------------------------------------------
+
+- Scab/Dreg Gunners and Reapers start in free aim; holding Q toggles target lock.
+- In lock mode, Q selects the nearest valid target and native aiming tracks it.
+- Camera aim and the Scab/Dreg spread override apply only with lock disabled.
+- Add regression checks for mode toggles, client requests and aim routing.
+
 3.0.12 - Crosshair accuracy and review fixes (2026-09-27)
 -------------------------------------------------------
 
