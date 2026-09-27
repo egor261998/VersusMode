@@ -6,6 +6,25 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Picker tabs preserve card identity and hide other groups',`
+local mod={_view_definitions={versus_mode_spawn_view={max_cards=28}},spawn_picker_cooldown=function(e)return e.cd or 0 end}
+function get_mod()return mod end
+function class()return {super={init=function()end}}end
+local loaded=(function() ${fs.readFileSync(path.join(base,'ui/versus_spawn_view.lua'),'utf8')} end)()
+local view=setmetatable({_widgets_by_name={}}, {__index=VersusModeSpawnView})
+for i=1,28 do view._widgets_by_name['enemy_'..i]={content={hotspot={}}}end
+for _,g in ipairs({'bosses','ranged','melee'})do view._widgets_by_name['group_'..g]={style={background={}}}end
+view:init({})
+local a={name='boss',group='bosses'};local b={name='gun',group='ranged'};local c={name='hound',group='melee',cd=20}
+view._all_choices={a,b,c};local chosen
+view.cb_choose_entry=function(_,e)chosen=e end
+view:cb_group('ranged',b);assert(#view._choices==1 and view._choices[1]==b and view._selected==1)
+view._widgets_by_name.enemy_1.content.hotspot.pressed_callback();assert(chosen==b)
+view:cb_group('bosses');view._widgets_by_name.enemy_1.content.hotspot.pressed_callback();assert(chosen==a)
+assert(not view._widgets_by_name.enemy_2.content.visible and view._widgets_by_name.enemy_2.content.hotspot.disabled)
+view:cb_group('melee');assert(view._selected==nil and view._widgets_by_name.enemy_1.content.hotspot.disabled)
+view._selection_submitted=true;view:cb_group('bosses');assert(view._choices[1]==c)
+`);
 run('Sniper requires aim on the authoritative command path',`
 local SNIPER_BREED_NAME='renegade_sniper';local status;local starts=0
 local VersusModeState={gunner_reloading=function()return false end,echo_localized=function()end}

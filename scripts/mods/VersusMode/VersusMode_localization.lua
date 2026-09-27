@@ -1,4 +1,7 @@
 return {
+    spawn_group_bosses = { en = "Bosses", ru = "Боссы" },
+    spawn_group_ranged = { en = "Ranged", ru = "Стрелки" },
+    spawn_group_melee = { en = "Melee", ru = "Ближники" },
     sniper_aim_required = { en = "Aim before firing", ru = "Сначала включи прицеливание" },
     hud_attack_plasma_shot = { en = "Plasma Shot", ru = "Выстрел плазмой" },
     melee_marker_renegade_plasma_gunner = { en = "Scab Plasma Gunner", ru = "Скаб-плазмомётчик" },

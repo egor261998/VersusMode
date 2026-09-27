@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.41 - Grouped enemy picker (2026-09-27)
+----------------------------------------
+
+- Add Bosses, Ranged and Melee tabs to the selection menu.
+- Keep live cooldowns, portrait cards and exact selection identity across tab changes.
+- Open the group containing the initial random available selection.
+
 3.0.40 - Sniper aimed shots only (2026-09-27)
 --------------------------------------------
 

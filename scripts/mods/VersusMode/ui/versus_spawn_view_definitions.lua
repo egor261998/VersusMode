@@ -34,9 +34,18 @@ for _, name in ipairs({ "title", "hint" }) do
     }, name)
 end
 local function visible(content) return content.visible ~= false end
+for i, group in ipairs({ "bosses", "ranged", "melee" }) do
+    local name = "group_" .. group
+    node(name, 180 + (i - 1) * 480, 120, 440, 50)
+    widgets[name] = UIWidget.create_definition({
+        { pass_type = "hotspot", content_id = "hotspot" },
+        { pass_type = "rect", style_id = "background", style = { color = { 230, 31, 43, 40 } } },
+        { pass_type = "text", value_id = "text", value = "", style = font(24) },
+    }, name)
+end
 for i = 1, MAX_CARDS do
     local name = "enemy_" .. i
-    node(name, 30 + (i - 1) % COLUMNS * 250, 125 + math.floor((i - 1) / COLUMNS) * 205, 230, 185)
+    node(name, 30 + (i - 1) % COLUMNS * 250, 180 + math.floor((i - 1) / COLUMNS) * 190, 230, 185)
     local label_style = font(20)
     label_style.size = { 220, 50 }
     label_style.offset = { 5, 110, 3 }

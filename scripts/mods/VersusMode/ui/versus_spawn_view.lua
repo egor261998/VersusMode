@@ -10,7 +10,8 @@ end
 
 VersusModeSpawnView.on_enter = function(self)
     VersusModeSpawnView.super.on_enter(self)
-    self._choices = mod.spawn_picker_choices()
+    self._all_choices = mod.spawn_picker_choices()
+    self._choices = self._all_choices
     local available = {}
     for i, entry in ipairs(self._choices) do
         if mod.spawn_picker_cooldown(entry) == 0 then available[#available + 1] = i end
@@ -31,6 +32,36 @@ VersusModeSpawnView.on_enter = function(self)
         widgets.cancel.content.text = mod:localize("training_return")
         widgets.cancel.content.hotspot.pressed_callback = callback(self, "cb_training_return")
     end
+    for _, group in ipairs({ "bosses", "ranged", "melee" }) do
+        local group_id = group
+        widgets["group_" .. group].content.text = mod:localize("spawn_group_" .. group)
+        widgets["group_" .. group].content.hotspot.pressed_callback = function() self:cb_group(group_id) end
+    end
+    local selected = self._selected and self._choices[self._selected]
+    self:cb_group(selected and selected.group or "bosses", selected)
+    mod.spawn_picker_hold(true)
+end
+
+VersusModeSpawnView.cb_group = function(self, group, preferred)
+    if self._selection_submitted then return end
+    self._choices = {}
+    self._selected = nil
+    local available = {}
+    for _, entry in ipairs(self._all_choices) do
+        if entry.group == group then
+            local i = #self._choices + 1
+            self._choices[i] = entry
+            if entry == preferred then self._selected = i end
+            if mod.spawn_picker_cooldown(entry) == 0 then available[#available + 1] = i end
+        end
+    end
+    self._selected = self._selected or (#available > 0 and available[math.random(#available)] or nil)
+    self._hovered = nil
+    self._hover_initialized = false
+    local widgets = self._widgets_by_name
+    for _, id in ipairs({ "bosses", "ranged", "melee" }) do
+        widgets["group_" .. id].style.background.color = id == group and { 245, 63, 93, 53 } or { 230, 31, 43, 40 }
+    end
     for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]
         local entry = self._choices[i]
@@ -45,7 +76,6 @@ VersusModeSpawnView.on_enter = function(self)
             self:cb_choose_entry(card_choice)
         end
     end
-    mod.spawn_picker_hold(true)
 end
 
 VersusModeSpawnView.cb_choose_entry = function(self, entry)

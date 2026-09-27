@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.40"
+mod.version = "3.0.41"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -19958,6 +19958,17 @@ mod.spawn_picker_cooldown = function(entry)
     return VersusModeState.breed_cooldown(VersusModeState.local_role(), entry.name)
 end
 
+function mod.spawn_picker_group(name)
+    local breed = VersusModeState.breeds[name]
+    if breed and breed.is_boss then return "bosses" end
+    if VersusModeState.gunner_breeds[name] or VersusModeState.shotgun_breeds[name]
+        or MANUAL_AIM_BREEDS[name] or GRENADIER_BREEDS[name]
+        or name == "renegade_flamer" or name == "cultist_flamer" or name == "renegade_flamer_mutator" then
+        return "ranged"
+    end
+    return "melee"
+end
+
 mod.spawn_picker_choices = function()
     local choices = VersusModeState.available_spawn_choices()
     local result = {}
@@ -19968,6 +19979,7 @@ mod.spawn_picker_choices = function()
             label = VersusModeState.respawn_label(entry.name, entry.variant_id),
             portrait = ENEMY_PORTRAITS[entry.name] or ENEMY_PORTRAIT_FALLBACK,
             portrait_breed = entry.name,
+            group = mod.spawn_picker_group(entry.name),
         }
     end
     return result
