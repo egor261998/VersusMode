@@ -389,6 +389,7 @@ ${fn('VersusModeState.available_spawn_choices')}
 assert(#VersusModeState.available_spawn_choices()==25)
 VersusModeState.breeds.chaos_armored_hound=nil;assert(#VersusModeState.available_spawn_choices()==24)
 VersusModeState.breeds.chaos_spawn.is_boss=true
+assert(#VersusModeState.available_spawn_choices(true)==24)
 assert(#VersusModeState.available_spawn_choices()==23)
 for _,entry in ipairs(VersusModeState.available_spawn_choices())do assert(entry.name~='chaos_spawn') end
 VersusModeState.variant_spawn_choices={{name='chaos_spawn'}}

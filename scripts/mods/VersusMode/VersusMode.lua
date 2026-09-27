@@ -3387,13 +3387,13 @@ function VersusModeState.remote_respawn_notice_message(payload)
     return nil
 end
 
-function VersusModeState.available_spawn_choices()
+function VersusModeState.available_spawn_choices(include_bosses)
     local choices = {}
 
     for i = 1, #VersusModeState.respawn_breeds do
         local entry = VersusModeState.respawn_breeds[i]
 
-        if VersusModeState.breeds[entry.name] and not VersusModeState.breeds[entry.name].is_boss then
+        if VersusModeState.breeds[entry.name] and (include_bosses == true or not VersusModeState.breeds[entry.name].is_boss) then
             choices[#choices + 1] = entry
         end
     end
@@ -3402,7 +3402,7 @@ function VersusModeState.available_spawn_choices()
         for i = 1, #VersusModeState.variant_spawn_choices do
             local entry = VersusModeState.variant_spawn_choices[i]
 
-            if VersusModeState.breeds[entry.name] and not VersusModeState.breeds[entry.name].is_boss then
+            if VersusModeState.breeds[entry.name] and (include_bosses == true or not VersusModeState.breeds[entry.name].is_boss) then
                 choices[#choices + 1] = entry
             end
         end
@@ -19783,7 +19783,7 @@ mod.training_available = VersusModeState.training_available
 function VersusModeState.training_select(entry)
     if not VersusModeState.training_available() or not entry then return false end
     local allowed = false
-    for _, choice in ipairs(VersusModeState.available_spawn_choices()) do
+    for _, choice in ipairs(VersusModeState.available_spawn_choices(true)) do
         if choice.name == entry.name and choice.variant_id == entry.variant_id then allowed = true break end
     end
     if not allowed then return false end
@@ -19957,8 +19957,9 @@ function mod.spawn_picker_group(name)
 end
 
 mod.spawn_picker_choices = function()
-    local role = VersusModeState.local_role()
-    local choices = role and role.death_choices or VersusModeState.available_spawn_choices()
+    local training = VersusModeState.training_available()
+    local role = not training and VersusModeState.local_role() or nil
+    local choices = role and role.death_choices or VersusModeState.available_spawn_choices(training)
     local result = {}
     for i = 1, #choices do
         local entry = choices[i]

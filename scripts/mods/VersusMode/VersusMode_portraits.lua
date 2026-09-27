@@ -146,6 +146,14 @@ function portraits.build(breed)
 end
 
 local unavailable = {}
+function portraits.release(content)
+    local cache = content._portrait_cache
+    content._portrait_cache = nil
+    if cache then
+        for _, id in ipairs(cache.ids) do UIRenderer.destroy_bitmap(cache.renderer, id) end
+    end
+end
+
 function portraits.draw(_, renderer, style, content, position, size)
     local breed = content.portrait_breed or "unknown"
     local photo = content.use_imported_portrait and imported_portrait(breed)
@@ -154,6 +162,19 @@ function portraits.draw(_, renderer, style, content, position, size)
         local left = position[1] + (size[1] - photo.width * scale) / 2
         local top = position[2] + (size[2] - photo.height * scale) / 2
         if photo.packed then
+            local cache
+            if content.retain_portrait and renderer.gui_retained then
+                local settings = renderer.render_settings or {}
+                local key = table.concat({ breed, position[1], position[2], position[3], size[1], size[2],
+                    renderer.scale or 1, settings.alpha_multiplier or 1, settings.color_intensity_multiplier or 1,
+                    settings.start_layer or 0, tostring(settings.snap_pixel_positions), tostring(settings.hdr),
+                    renderer.base_render_pass or "" }, ":")
+                cache = content._portrait_cache
+                if cache and cache.renderer == renderer and cache.key == key and cache.photo == photo then return end
+                portraits.release(content)
+                cache = { renderer = renderer, key = key, photo = photo, ids = {} }
+                content._portrait_cache = cache
+            end
             -- Gui.rect consumes its vectors immediately. Reclaim only the
             -- temporaries created below, preserving the caller's frame data.
             local vectors, quaternions, matrices
@@ -162,9 +183,10 @@ function portraits.draw(_, renderer, style, content, position, size)
             end
             for i = 1, #photo.packed, 7 do
                 local x, y, w, h, r, g, b = string.byte(photo.packed, i, i + 6)
-                UIRenderer.draw_rect(renderer,
+                local id = UIRenderer.draw_rect(renderer,
                     Vector3(left + x * scale, top + y * scale, position[3]),
-                    Vector3(w * scale, h * scale, 0), Color(255, r, g, b))
+                    Vector3(w * scale, h * scale, 0), Color(255, r, g, b), cache and true or nil)
+                if cache then cache.ids[#cache.ids + 1] = id end
                 if vectors then Script.set_temp_count(vectors, quaternions, matrices) end
             end
         else

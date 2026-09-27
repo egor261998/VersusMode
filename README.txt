@@ -377,4 +377,4 @@ After a controlled Heretic dies, the host offers five distinct random non-boss
 enemies. Ready breeds are preferred; any remaining cards keep their cooldowns.
 The picker opens after the death camera. Respawn waits for a confirmed choice.
 Closing and reopening the picker preserves the offer. Bosses are no longer
-available in reinforcement or training spawn menus: take over an existing boss.
+available as mission reinforcements: take over an existing boss. In the local Psykhanium, bosses remain selectable without cooldowns.
