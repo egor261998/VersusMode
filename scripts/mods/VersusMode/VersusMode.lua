@@ -129,7 +129,6 @@ local VersusModeState = {
         { name = "chaos_beast_of_nurgle", label = "Beast of Nurgle" },
         { name = "chaos_ogryn_houndmaster", label = "Houndmaster" },
         { name = "chaos_daemonhost", label = "Daemonhost" },
-        { name = "chaos_mutator_daemonhost", label = "Mutator Daemonhost", label_key = "melee_marker_chaos_mutator_daemonhost" },
         { name = "renegade_captain", label = "Scab Captain", label_key = "spawn_scab_captain" },
         { name = "cultist_captain", label = "Dreg Captain" },
         { name = "renegade_twin_captain", label = "Scab Lieutenant (plasma)", label_key = "spawn_havoc_lieutenant_ranged" },
@@ -447,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.54"
+mod.version = "3.0.55"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
