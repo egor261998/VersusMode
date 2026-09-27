@@ -27,7 +27,7 @@ for breed in pairs(portraits.profiles)do
  assert(pixels==1024);n=n+1
  result[#result+1]='"'..breed..'":['..table.concat(encoded,',')..']'
 end
-assert(n==31)
+assert(n==32)
 for breed in pairs(portraits.profiles)do
  local p=assert(imported[breed],breed);local area=0
  assert(#p.runs<=2048)
@@ -60,4 +60,4 @@ if(process.argv.includes('--preview')){
  names.forEach((name,i)=>{const x=(i%6)*200+36,y=Math.floor(i/6)*220+16;for(const [rx,ry,w,h,r,g,b]of icons[name])svg+=`<rect x="${x+rx*4}" y="${y+ry*4}" width="${w*4}" height="${h*4}" fill="rgb(${r},${g},${b})"/>`;svg+=`<text x="${x+64}" y="${y+155}" text-anchor="middle" fill="#eee" font-family="sans-serif" font-size="10">${name}</text>`;});
  fs.writeFileSync(path.join(dir,'enemy-portraits.svg'),svg+'</svg>');
 }
-console.log('31 cached portraits, roster coverage, native rendering and fallback checks passed');
+console.log('32 cached portraits, roster coverage, native rendering and fallback checks passed');

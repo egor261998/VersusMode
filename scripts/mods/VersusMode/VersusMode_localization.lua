@@ -1,4 +1,6 @@
 return {
+    hud_attack_plasma_shot = { en = "Plasma Shot", ru = "Выстрел плазмой" },
+    melee_marker_renegade_plasma_gunner = { en = "Scab Plasma Gunner", ru = "Скаб-плазмомётчик" },
     specialist_panel_cooldown = { en = "Shot cooldown: %.1f s", ru = "КД выстрела: %.1f с" },
     specialist_panel_ready = { en = "Ready to fire", ru = "Выстрел готов" },
     use_drawn_enemy_portraits = { en = "Use drawn enemy icons", ru = "Рисованные иконки еретиков" },

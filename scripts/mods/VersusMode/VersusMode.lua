@@ -123,6 +123,7 @@ local VersusModeState = {
         { name = "cultist_mutant", label = "Mutant" },
         { name = "renegade_shocktrooper", label = "Scab Shotgunner" },
         { name = "cultist_shocktrooper", label = "Dreg Shotgunner" },
+        { name = "renegade_plasma_gunner", label = "Scab Plasma Gunner" },
         { name = "chaos_plague_ogryn", label = "Plague Ogryn" },
         { name = "chaos_spawn", label = "Chaos Spawn" },
         { name = "chaos_beast_of_nurgle", label = "Beast of Nurgle" },
@@ -145,8 +146,9 @@ local VersusModeState = {
         renegade_executor = true,
         renegade_shocktrooper = true,
         cultist_shocktrooper = true,
+        renegade_plasma_gunner = true,
     },
-    shotgun_breeds = { renegade_shocktrooper = true, cultist_shocktrooper = true },
+    shotgun_breeds = { renegade_shocktrooper = true, cultist_shocktrooper = true, renegade_plasma_gunner = true },
     gunner_smoke_melee_range = 4,
     gunner_breeds = {
         renegade_gunner = true,
@@ -445,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.38"
+mod.version = "3.0.39"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -767,6 +769,10 @@ end
 VersusModeState.ensure_outline_settings()
 
 local ATTACKS = {
+    renegade_plasma_gunner = {
+        primary = { label = "Plasma Shot", action_name = "shoot", selector_name = "close_combat_utility", shotgun_combat_range = "close", force_utility = true, cancellable = true, camera_directed = true, stationary = true, single_shoot_cycle = true },
+        heavy = { label = "Gun Butt Strike", action_name = "melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
+    },
     renegade_shocktrooper = {
         primary = { label = "Shotgun Blast", action_name = "shoot", selector_name = "close_combat_utility", shotgun_combat_range = "close", force_utility = true, cancellable = true, camera_directed = true, stationary = true, single_shoot_cycle = true },
         heavy = { label = "Gun Butt Strike", action_name = "melee_attack", selector_name = "melee_combat", shotgun_combat_range = "melee", range_max = 3.5, range_text = "0–3.5 m", strict_range = true, force_utility = true, cancellable = true, camera_directed = true, free_aim_melee = true, stationary = true },
@@ -1364,6 +1370,7 @@ VersusModeState.hud_attack_label_keys = {
     ["Claw Attack"] = "hud_attack_claw",
     ["Combo Attack"] = "hud_attack_combo",
     ["Consume"] = "hud_attack_consume",
+    ["Plasma Shot"] = "hud_attack_plasma_shot",
     ["Crusher Cleave"] = "hud_attack_crusher_cleave",
     ["Crusher Strike"] = "hud_attack_crusher_strike",
     ["Dash and Sweep"] = "hud_attack_dash_sweep",
@@ -11273,7 +11280,7 @@ function Specialist.prepare_shotgun_range(state, attack)
     local range = attack.shotgun_combat_range or "close"
     local behavior = state.blackboard.behavior
     -- Scabs draw a separate melee weapon. Dregs keep their shotgun and bayonet.
-    if state.breed.name == "renegade_shocktrooper" then
+    if (state.breed.name == "renegade_shocktrooper" or state.breed.name == "renegade_plasma_gunner") then
         local slot = range == "melee" and "slot_melee_weapon" or "slot_ranged_weapon"
         local switch = state.blackboard.weapon_switch
         local ok, wielded = safe_extension_call(state.visual_loadout, "wielded_slot_name")
@@ -23071,7 +23078,7 @@ mod:hook(VersusModeState.switch_weapon_action, "enter", function(func, self, uni
         and state.breed
         and requested
         and (CAPTAIN_BREEDS[state.breed.name] and requested.captain_weapon_slot == wanted_slot
-            or state.breed.name == "renegade_shocktrooper" and requested.shotgun_combat_range)
+            or (state.breed.name == "renegade_shocktrooper" or state.breed.name == "renegade_plasma_gunner") and requested.shotgun_combat_range)
     local result = func(self, unit, breed, blackboard, scratchpad, action_data, t)
 
     if controlled_switch then
@@ -23400,6 +23407,7 @@ mod:hook(BtShootAction, "_update_aiming", function(func, self, unit, t, scratchp
     if not state or state.unit ~= unit or not state.attack_deadline
         or not (VersusModeState.gunner_breeds[state.breed.name] or VersusModeState.shotgun_breeds[state.breed.name])
         or not Specialist.free_aim(state)
+        or state.breed.name == "renegade_plasma_gunner"
         or not attack or (attack.gunner_combat_range ~= "far" and attack.shotgun_combat_range ~= "close") then
         return func(self, unit, t, scratchpad, action_data, breed)
     end

@@ -11,6 +11,7 @@ local function imported_portrait(breed)
     return imported[breed]
 end
 local profiles = {
+    renegade_plasma_gunner = { "helmet", "plasma", "steel" },
     renegade_gunner = { "helmet", "belt", "steel" },
     cultist_gunner = { "hood", "belt", "ochre" },
     chaos_ogryn_gunner = { "ogryn", "belt", "olive" },

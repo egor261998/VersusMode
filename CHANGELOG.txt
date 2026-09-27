@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.39 - Playable Scab Plasma Gunner (2026-09-27)
+------------------------------------------------
+
+- Add the Scab Plasma Gunner to selection with its supplied portrait.
+- Primary uses the native charged plasma shot; secondary uses melee with native weapon switching.
+- Enable target-lock switching and the per-enemy melee guide setting.
+
 3.0.38 - Supplied selection portraits (2026-09-27)
 ------------------------------------------------
 
