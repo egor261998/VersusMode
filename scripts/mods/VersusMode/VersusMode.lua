@@ -446,7 +446,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.61"
+mod.version = "3.0.62"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -2232,6 +2232,15 @@ local function gameplay_time()
     end
 
     return time_manager:has_timer("main") and time_manager:time("main") or 0
+end
+
+function VersusModeState.sniper_preparation_remaining(state)
+    if not state or not state.breed or state.breed.name ~= SNIPER_BREED_NAME then return 0 end
+    if state.remote_client then
+        return math.max(0, (state.sniper_preparation_until or 0) - gameplay_time())
+    end
+    if not state.attack_deadline or state.sniper_shot_fired or not state.sniper_shot_started_at then return 0 end
+    return math.max(0, state.sniper_shot_started_at + VersusModeState.sniper_shot_delay() - gameplay_time())
 end
 
 -- Lobby selection crosses the hub/preparation -> mission state boundary. The
@@ -16979,6 +16988,7 @@ function VersusModeState.send_remote_status(peer_id, message, kind, state, notic
             notice_variant = notice and notice.variant or nil,
             poxburster_armed = state and state.poxburster_armed == true or false,
             sniper_cooldown_remaining = state and math_max(0, (state.sniper_fire_cooldown_until or 0) - gameplay_time()) or 0,
+            sniper_preparation_remaining = VersusModeState.sniper_preparation_remaining(state),
             sniper_laser_active = state and state.sniper_laser_active == true or false,
             sniper_shot_fired = state and state.sniper_shot_fired == true or false,
             target_name = target_reference and target_reference.name
@@ -17715,6 +17725,12 @@ function VersusModeState.apply_remote_status(payload)
             and payload.netter_cooldown_remaining >= 0
             and payload.netter_cooldown_remaining <= 60 then
             state.netter_fire_cooldown_until = gameplay_time() + payload.netter_cooldown_remaining
+        end
+
+        if type(payload.sniper_preparation_remaining) == "number"
+            and payload.sniper_preparation_remaining == payload.sniper_preparation_remaining
+            and payload.sniper_preparation_remaining >= 0 and payload.sniper_preparation_remaining <= 3 then
+            state.sniper_preparation_until = gameplay_time() + payload.sniper_preparation_remaining
         end
 
         if type(payload.sniper_cooldown_remaining) == "number"
@@ -20744,6 +20760,10 @@ end
 function VersusModeState.specialist_panel_cooldown(state)
     local breed = state and state.breed and state.breed.name
     if breed ~= SNIPER_BREED_NAME and breed ~= NETTER_BREED_NAME then return nil end
+    local preparation = VersusModeState.sniper_preparation_remaining(state)
+    if preparation > 0 then
+        return mod:localize("specialist_panel_preparation", math.ceil(preparation * 10) / 10)
+    end
     local deadline = breed == SNIPER_BREED_NAME and state.sniper_fire_cooldown_until
         or breed == NETTER_BREED_NAME and state.netter_fire_cooldown_until or 0
     local remaining = math.max(0, (deadline or 0) - gameplay_time())

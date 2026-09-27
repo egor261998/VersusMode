@@ -1,6 +1,12 @@
 -- Host-owned reservations. UI replies never select a unit supplied by a client.
 return function(env)
     local offers = { serial = 0 }
+    local guaranteed_breeds = {
+        renegade_captain = true,
+        cultist_captain = true,
+        renegade_twin_captain = true,
+        renegade_twin_captain_two = true,
+    }
 
     function offers:close_local()
         if self.popup_id ~= nil and Managers.event then
@@ -47,7 +53,9 @@ return function(env)
         local active = self.active
         self.active = nil
         if active then
-            env.send(active.role, { kind = "boss_offer_cancel", offer_id = active.id })
+            for role in pairs(active.roles) do
+                env.send(role, { kind = "boss_offer_cancel", offer_id = active.id })
+            end
         end
     end
 
@@ -59,11 +67,16 @@ return function(env)
 
     function offers:answer(role, id, accepted)
         local active = self.active
-        if not active or active.role ~= role or active.id ~= id or type(accepted) ~= "boolean" then return false end
+        if not active or not active.roles[role] or active.id ~= id or type(accepted) ~= "boolean" then return false end
         local valid = env.enabled() and env.now() < active.until_t
             and env.role_eligible(role) and env.boss_eligible(active.entry) and env.capacity()
+        if not accepted or not valid then
+            active.roles[role] = nil
+            env.send(role, { kind = "boss_offer_cancel", offer_id = active.id })
+            if not next(active.roles) then self:cancel() end
+            return false
+        end
         self:cancel()
-        if not accepted or not valid then return false end
         -- Consume the offer before possession; repeated or simultaneous replies cannot reuse it.
         return env.possess(active.entry, role) == true
     end
@@ -83,21 +96,30 @@ return function(env)
         local active = self.active
         if active then
             if not pending or pending[active.entry.unit] ~= active.entry or env.now() >= active.until_t
-                or not env.role_eligible(active.role) or not env.boss_eligible(active.entry) or not env.capacity() then
+                or not env.boss_eligible(active.entry) or not env.capacity() then
                 self:cancel()
             else
                 -- Prevent automatic reinforcement spawning while the decision is pending.
-                active.role.spawn_picker_until = env.now() + 1
-                if env.now() >= active.send_at then
-                    active.send_at = env.now() + 1
-                    env.send(active.role, { kind = "boss_offer", offer_id = active.id,
-                        breed = active.entry.breed.name, remaining = active.until_t - env.now() })
+                local resend = env.now() >= active.send_at
+                if resend then active.send_at = env.now() + 1 end
+                for role in pairs(active.roles) do
+                    if not env.role_eligible(role) then
+                        active.roles[role] = nil
+                        env.send(role, { kind = "boss_offer_cancel", offer_id = active.id })
+                    else
+                        role.spawn_picker_until = env.now() + 1
+                        if resend then
+                            env.send(role, { kind = "boss_offer", offer_id = active.id,
+                                breed = active.entry.breed.name, remaining = active.until_t - env.now() })
+                        end
+                    end
                 end
-                return
+                if next(active.roles) then return end
+                self:cancel()
             end
         end
         if not pending or not env.capacity() then return end
-        local selected, recipient
+        local selected
         for unit, entry in pairs(pending) do
             if not env.alive(unit) then
                 pending[unit] = nil
@@ -106,19 +128,31 @@ return function(env)
                 for _, role in pairs(env.roles()) do
                     if not entry.offered_roles[role] and env.role_eligible(role)
                         and (not selected or entry.queued_at < selected.queued_at) then
-                        selected, recipient = entry, role
+                        selected = entry
                     end
                 end
             end
         end
         if selected then
-            selected.offered_roles[recipient] = true
+            local recipients = {}
+            for _, role in pairs(env.roles()) do
+                if not selected.offered_roles[role] and env.role_eligible(role) then
+                    -- Record failed rolls too: each player gets one chance per boss.
+                    selected.offered_roles[role] = true
+                    if guaranteed_breeds[selected.breed.name] or (env.random or math.random)(1, 4) == 1 then
+                        recipients[role] = true
+                    end
+                end
+            end
+            if not next(recipients) then return end
             self.serial = self.serial + 1
-            self.active = { id = self.serial, entry = selected, role = recipient,
+            self.active = { id = self.serial, entry = selected, roles = recipients,
                 until_t = env.now() + 15, send_at = env.now() + 1 }
-            recipient.spawn_picker_until = env.now() + 1
-            env.send(recipient, { kind = "boss_offer", offer_id = self.serial,
-                breed = selected.breed.name, remaining = 15 })
+            for role in pairs(recipients) do
+                role.spawn_picker_until = env.now() + 1
+                env.send(role, { kind = "boss_offer", offer_id = self.serial,
+                    breed = selected.breed.name, remaining = 15 })
+            end
         end
     end
 
