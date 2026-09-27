@@ -154,11 +154,18 @@ function portraits.draw(_, renderer, style, content, position, size)
         local left = position[1] + (size[1] - photo.width * scale) / 2
         local top = position[2] + (size[2] - photo.height * scale) / 2
         if photo.packed then
+            -- Gui.rect consumes its vectors immediately. Reclaim only the
+            -- temporaries created below, preserving the caller's frame data.
+            local vectors, quaternions, matrices
+            if Script and Script.temp_count and Script.set_temp_count then
+                vectors, quaternions, matrices = Script.temp_count()
+            end
             for i = 1, #photo.packed, 7 do
                 local x, y, w, h, r, g, b = string.byte(photo.packed, i, i + 6)
                 UIRenderer.draw_rect(renderer,
                     Vector3(left + x * scale, top + y * scale, position[3]),
                     Vector3(w * scale, h * scale, 0), Color(255, r, g, b))
+                if vectors then Script.set_temp_count(vectors, quaternions, matrices) end
             end
         else
             -- Support portrait data already loaded before a mod update.
