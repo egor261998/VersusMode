@@ -107,6 +107,15 @@ return {
                         step_size_value = 1,
                         tooltip = "specialist_shot_cooldown_tooltip",
                     },
+                    {
+                        setting_id = "sniper_shot_delay",
+                        type = "numeric",
+                        default_value = 1,
+                        range = { 1, 3 },
+                        decimals_number = 1,
+                        step_size_value = 0.5,
+                        tooltip = "sniper_shot_delay_tooltip",
+                    },
                 },
             },
             {
