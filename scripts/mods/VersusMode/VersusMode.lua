@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.47"
+mod.version = "3.0.48"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -14119,8 +14119,28 @@ local function evaluate_forced_beast_attack(selector, state, unit, blackboard, s
 
     local attack = state.requested_attack
 
-    if not attack or attack.beast_path == "spit_out" then
+    if not attack then
         return false, nil
+    end
+
+    if attack.beast_path == "spit_out" then
+        local death = blackboard.death
+        local stagger = blackboard.stagger
+        if death and death.is_dead or stagger and stagger.num_triggered_staggers > 0 then
+            return false, nil
+        end
+        local spit = child_by_identifier(selector._selector_children, "spit_out")
+        local running = spit and last_leaf_node_running and old_running_child_nodes[selector.identifier] == spit
+        -- The native selector requires a separate perception target and an
+        -- unlocked target even though this action releases the swallowed player.
+        -- Preserve the native leaf through its recovery after it releases them.
+        if spit and (running or valid_player_target(blackboard.behavior.consumed_unit)) then
+            new_running_child_nodes[selector.identifier] = spit
+            return true, spit
+        end
+        state.command_action_complete = true
+        state.attack_min_until = 0
+        return true, nil
     end
 
     if state.attack_started and not last_leaf_node_running then

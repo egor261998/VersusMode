@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.48 - Beast manual spit selection (2026-09-27)
+-----------------------------------------------
+
+- Select the native spit-out action on F without requiring a separate perception target or unlocked aim.
+- Preserve native release recovery and defer to death/stagger handling.
+
 3.0.47 - Boss free-aim camera alignment (2026-09-27)
 --------------------------------------------------
 

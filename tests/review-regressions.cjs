@@ -6,6 +6,25 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Beast spit selection works without a perception target and finishes native recovery',`
+local function valid_player_target(u)return u=='swallowed' end
+local function sanitize_beast_consumed_state()end
+local function child_by_identifier(children,id)for _,n in ipairs(children)do if n.identifier==id then return n end end end
+${fn('evaluate_forced_beast_attack')}
+local spit={identifier='spit_out'}
+local selector={identifier='root',_selector_children={spit}}
+local bb={behavior={consumed_unit='swallowed'},perception={lock_target=true},death={},stagger={num_triggered_staggers=0}}
+local s={breed={name='chaos_beast_of_nurgle'},unit='beast',blackboard=bb,requested_attack={beast_path='spit_out'}}
+local links={}
+local function evaluate(old,running)return evaluate_forced_beast_attack(selector,s,'beast',bb,{},0,1,false,{},old or {},links,running)end
+local handled,leaf=evaluate();assert(handled and leaf==spit and links.root==spit)
+bb.behavior.consumed_unit=nil
+handled,leaf=evaluate({root=spit},true);assert(handled and leaf==spit)
+handled,leaf=evaluate({root=spit},false);assert(handled and leaf==nil and s.command_action_complete)
+bb.behavior.consumed_unit='swallowed';bb.stagger.num_triggered_staggers=1
+assert(evaluate()==false)
+bb.stagger.num_triggered_staggers=0;bb.death.is_dead=true;assert(evaluate()==false)
+`);
 run('Boss camera stays on its focus axis with or without target lock',`
 local mt={}
 local function vec(x,y,z)return setmetatable({x=x,y=y,z=z},mt)end
