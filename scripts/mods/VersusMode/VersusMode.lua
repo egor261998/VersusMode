@@ -447,7 +447,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.49"
+mod.version = "3.0.50"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -17943,6 +17943,12 @@ function Specialist.request_beast_spit_out(state, slot)
         return false
     end
     if state.requested_attack and state.requested_attack.beast_path == "spit_out" then return true end
+    local brain = state.behavior and state.behavior._brain
+    if brain and brain:running_action() == "consume" then
+        -- Finish Consume normally: aborting it clears the swallowed player.
+        state.beast_spit_pending = true
+        return true
+    end
     local t = gameplay_time()
     behavior.force_spit_out = true
     if state.perception_component then state.perception_component.aggro_state = "aggroed" end
@@ -25568,6 +25574,21 @@ mod:hook(BtBeastOfNurgleConsumeAction, "leave", function(func, self, unit, breed
     local was_controlled_consume = state and state.unit == unit and state.requested_attack and state.requested_attack.beast_path == "consume"
     local result = func(self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
 
+    if state and state.beast_spit_pending then
+        state.beast_spit_pending = nil
+        if reason == "done" and not destroy and valid_player_target(blackboard.behavior.consumed_unit) then
+            -- running_action still names Consume during leave; start the
+            -- queued command on the next selector evaluation instead.
+            state.requested_attack = { label = "Consume", action_name = "spit_out", beast_path = "spit_out", targetless = true }
+            state.command_action_complete = nil
+            state.attack_started = nil
+            state.attack_min_until = t
+            state.attack_deadline = t + 5
+            state.attack_hard_deadline = t + 15
+            blackboard.behavior.force_spit_out = true
+        end
+    end
+
     if was_controlled_consume and VersusModeState.control_for_unit(unit) == state then
         -- Whether it connected or missed, one native Consume animation is one
         -- command. If it missed the hand-to-target radius, do not immediately
@@ -25581,6 +25602,14 @@ mod:hook(BtBeastOfNurgleConsumeAction, "leave", function(func, self, unit, breed
     end
 
     return result
+end)
+
+mod:hook(BtBeastOfNurgleConsumeAction, "run", function(func, self, unit, breed, blackboard, scratchpad, action_data, dt, t)
+    local state = VersusModeState.control_for_unit(unit)
+    if state and state.beast_spit_pending and valid_player_target(blackboard.behavior.consumed_unit) then
+        return "done"
+    end
+    return func(self, unit, breed, blackboard, scratchpad, action_data, dt, t)
 end)
 
 local function stop_controlled_spawn_grab_motion(unit, scratchpad)

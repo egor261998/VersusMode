@@ -6,6 +6,29 @@ const ast=parse(source,{luaVersion:'5.1',ranges:true});
 const id=n=>n.type==='Identifier'?n.name:id(n.base)+'.'+n.identifier.name;
 const fn=name=>{const n=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.identifier&&id(n.identifier)===name);if(!n)throw Error(name);return source.slice(...n.range)};
 const startAttack=fn('start_attack_burst');
+run('Beast queued F completes Consume before selecting Spit Out',`
+local Specialist={};local hooks={};local state
+local function valid_player_target(u)return u=='player' end
+local function gameplay_time()return 10 end
+local function safe_extension_call()error('must not restart active consume')end
+local VersusModeState={control_for_unit=function()return state end}
+local HEALTH_ALIVE={player=true}
+local BtBeastOfNurgleConsumeAction={}
+local mod={hook=function(_,class,name,f)hooks[name]=f end}
+${fn('Specialist.request_beast_spit_out')}
+${source.slice(source.indexOf('mod:hook(BtBeastOfNurgleConsumeAction, "leave"'),source.indexOf('local function stop_controlled_spawn_grab_motion'))}
+local bb={behavior={consumed_unit='player'}}
+state={unit='beast',breed={name='chaos_beast_of_nurgle'},blackboard=bb,
+ behavior={_brain={running_action=function()return 'consume' end}},requested_attack={beast_path='consume'}}
+assert(Specialist.request_beast_spit_out(state,'special'))
+assert(state.beast_spit_pending and state.requested_attack.beast_path=='consume')
+local result=hooks.run(function()error('should finish queued consume')end,{},'beast',{},bb,{}, {},0,10)
+assert(result=='done')
+hooks.leave(function(_,_,_,board,_,_,_,reason)assert(reason=='done');assert(board.behavior.consumed_unit=='player')end,
+ {},'beast',{},bb,{}, {},10,result,false)
+assert(not state.beast_spit_pending and bb.behavior.consumed_unit=='player')
+assert(state.requested_attack.beast_path=='spit_out' and state.requested_attack.targetless and state.attack_deadline==15)
+`);
 run('Beast spit selection works without a perception target and finishes native recovery',`
 local function valid_player_target(u)return u=='swallowed' end
 local function sanitize_beast_consumed_state()end

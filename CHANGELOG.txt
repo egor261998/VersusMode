@@ -1,6 +1,12 @@
 Versus Mode changelog
 =====================
 
+3.0.50 - Queued Beast release (2026-09-27)
+-----------------------------------------
+
+- Queue F during Consume and finish that action normally before entering Spit Out, preserving the swallowed player.
+- Test the command, native run completion and leave transition together.
+
 3.0.49 - Picker group order (2026-09-27)
 --------------------------------------
 
