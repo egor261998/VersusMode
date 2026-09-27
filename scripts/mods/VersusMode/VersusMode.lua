@@ -445,7 +445,7 @@ local ProjectileIntegration = require("scripts/extension_systems/locomotion/util
 local MinionMovement = require("scripts/utilities/minion_movement")
 local Trajectory = require("scripts/utilities/trajectory")
 
-mod.version = "3.0.33"
+mod.version = "3.0.34"
 mod:info("Versus Mode %s loaded.", mod.version)
 mod._suppress_freeflight_toggle_frames = 0
 mod._suppress_smart_tag_until = -math.huge
@@ -1793,10 +1793,9 @@ function Specialist.target_mode_supported(state)
     local breed_name = breed and breed.name
 
     return breed
-        and not breed.is_boss
         and not MANUAL_AIM_BREEDS[breed_name]
         and not HOUND_BREEDS[breed_name]
-        and (is_specialist_breed(breed) or VersusModeState.controlled_elite_breeds[breed_name])
+        and (breed.is_boss or is_specialist_breed(breed) or VersusModeState.controlled_elite_breeds[breed_name])
         or false
 end
 
@@ -18498,8 +18497,8 @@ function Specialist.toggle_target_lock(state)
 
         -- Crusher and Bulwark retain the existing Auto/Free-aim pairing:
         -- Casual uses a target lock, while Advanced exposes their four direct
-        -- camera attacks. Bosses/Captains keep ordinary target cycling in both
-        -- combat layouts because free-aim behavior is not safe for their tree.
+        -- camera attacks. Bosses use camera-selected real targets when unlocked;
+        -- native grabs and charges still require a valid living target.
         if Specialist.target_mode_supported(state) then
             state.grenadier_target_lock = state.casual_combat
 
@@ -21025,7 +21024,7 @@ function VersusModeState.update_authoritative_remote_control(state)
     end
 
     if (Specialist.target_mode_supported(state) and state.grenadier_target_lock ~= false
-        or Specialist.casual_supported(state) and state.casual_combat == true)
+        or not Specialist.target_mode_supported(state) and Specialist.casual_supported(state) and state.casual_combat == true)
         and not state.locked_target
         and not state.attack_deadline then
         set_locked_target(state, nearest_attack_target(state))
@@ -21498,7 +21497,7 @@ mod.update = function(dt)
     end
 
     if (Specialist.target_mode_supported(state) and state.grenadier_target_lock ~= false
-        or Specialist.casual_supported(state) and state.casual_combat == true)
+        or not Specialist.target_mode_supported(state) and Specialist.casual_supported(state) and state.casual_combat == true)
         and not state.locked_target
         and not state.attack_deadline then
         set_locked_target(state, nearest_attack_target(state))

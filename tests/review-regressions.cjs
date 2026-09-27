@@ -191,6 +191,16 @@ for _,breed in ipairs({'renegade_gunner','cultist_gunner','chaos_ogryn_gunner'})
 end
 assert(Specialist.free_aim({breed={name='renegade_sniper'}}))
 assert(not Specialist.target_mode_supported({breed={name='renegade_netgunner'}}))
+Specialist.casual_supported=function()return true end
+for _,name in ipairs({'chaos_spawn','chaos_plague_ogryn','chaos_beast_of_nurgle','chaos_daemonhost','renegade_captain','renegade_twin_captain'})do
+ local s={possessed=true,breed={name=name,is_boss=true},casual_combat=true,grenadier_target_lock=true,locked_target='old'}
+ assert(Specialist.target_mode_supported(s))
+ Specialist.toggle_target_lock(s)
+ assert(not s.casual_combat and s.grenadier_target_lock==false and s.locked_target==nil and Specialist.free_aim(s))
+ Specialist.toggle_target_lock(s)
+ assert(s.casual_combat and s.grenadier_target_lock and s.locked_target=='nearest' and not Specialist.free_aim(s))
+ s.remote_client=true;Specialist.toggle_target_lock(s);assert(sent=='target_lock' and s.grenadier_target_lock)
+end
 `);
 function run(name,code){const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(name+': '+to_jsstring(lua.lua_tostring(L,-1)));console.log(name+' passed');}
 run('Committed grenade HUD and authoritative arc roundtrip',`

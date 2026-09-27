@@ -1,6 +1,13 @@
 Versus Mode changelog
 =====================
 
+3.0.34 - Boss target lock toggle (2026-09-27)
+-------------------------------------------
+
+- Let bosses disable target lock through the existing Advanced/Free Aim toggle.
+- Select real attack targets along the camera direction and prevent automatic re-locking while unlocked.
+- Preserve native target requirements for grabs and charges and existing client forwarding.
+
 3.0.33 - Fresh shotgunner attack transitions (2026-09-27)
 ------------------------------------------------------
 
