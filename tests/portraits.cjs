@@ -7,7 +7,7 @@ const L=lauxlib.luaL_newstate();lualib.luaL_openlibs(L);
 const code=`
 local destroyed=0;local texture_calls,rect_calls=0,0;local fail=false;local force=false;local frame=1
 local renderer={draw_texture=function()texture_calls=texture_calls+1;if fail then error('missing material')end end,
-draw_rect=function(_,pos,size,color)assert(pos[1]==pos[1] and size[1]>0 and size[2]>0);assert(color.frame==frame,'expired frame color');rect_calls=rect_calls+1;return rect_calls end,destroy_bitmap=function()destroyed=destroyed+1 end}
+draw_rect=function(_,pos,size,color,retained_id)assert(not retained_id,'portraits must not allocate retained GUI objects');assert(pos[1]==pos[1] and size[1]>0 and size[2]>0);assert(color.frame==frame,'expired frame color');rect_calls=rect_calls+1;return rect_calls end,destroy_bitmap=function()destroyed=destroyed+1 end}
 function require()return renderer end
 local imported=(function()${importedSource} end)()
 function get_mod()return {get=function()return force end,io_dofile=function()return imported end}end
@@ -49,19 +49,6 @@ portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(texture_calls==1 and r
 force=true;portraits.draw(nil,{},nil,content,{0,0,1},{56,56});assert(rect_calls>0 and texture_calls==1)
 force=false;fail=true;rect_calls=0;portraits.draw(nil,{},nil,content,{0,0,1},{90,90});assert(rect_calls>0)
 local old=texture_calls;portraits.draw(nil,{},nil,content,{0,0,1},{110,110});assert(texture_calls==old)
-local retained={gui_retained={},scale=1};local card={portrait_breed='chaos_ogryn_executor',use_imported_portrait=true,retain_portrait=true}
-rect_calls=0
-portraits.draw(nil,retained,nil,card,{0,0,1},{110,110})
-local initial=rect_calls;assert(initial>0)
-for i=1,60 do frame=frame+1;portraits.draw(nil,retained,nil,card,{0,0,1},{110,110})end
-assert(rect_calls==initial,'unchanged portraits must not submit rectangles each frame')
-portraits.draw(nil,retained,nil,card,{1,0,1},{110,110})
-assert(rect_calls==initial*2 and destroyed==initial,'moving must replace cached geometry')
-portraits.release(card);assert(destroyed==initial*2 and card._portrait_cache==nil)
-portraits.release(card);assert(destroyed==initial*2)
-portraits.draw(nil,retained,nil,card,{0,0,1},{110,110})
-portraits.release(card,true)
-assert(destroyed==initial*2 and card._portrait_cache==nil,'owned GUI teardown must not enqueue per-pixel removals')
 portrait_json='{'..table.concat(result,',')..'}'
 `;
 if(lauxlib.luaL_dostring(L,to_luastring(code))!==lua.LUA_OK)throw Error(to_jsstring(lua.lua_tostring(L,-1)));

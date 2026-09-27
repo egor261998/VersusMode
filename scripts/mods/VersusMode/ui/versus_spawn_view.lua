@@ -79,8 +79,6 @@ VersusModeSpawnView.cb_group = function(self, group, preferred)
     end
     for i = 1, definitions.max_cards do
         local widget = widgets["enemy_" .. i]
-        if mod._portraits and mod._portraits.release then mod._portraits.release(widget.content) end
-        widget.content.retain_portrait = true
         local entry = self._choices[i]
         widget.content.visible = entry ~= nil
         widget.content.hotspot.disabled = entry == nil or mod.spawn_picker_cooldown(entry) > 0
@@ -124,12 +122,6 @@ VersusModeSpawnView._on_back_pressed = function(self)
 end
 
 VersusModeSpawnView.on_exit = function(self)
-    for i = 1, definitions.max_cards do
-        local widget = self._widgets_by_name["enemy_" .. i]
-        if widget and mod._portraits and mod._portraits.release then
-            mod._portraits.release(widget.content, not self._ui_renderer_is_external)
-        end
-    end
     mod.spawn_picker_hold(false)
     VersusModeSpawnView.super.on_exit(self)
 end
